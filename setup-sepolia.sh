@@ -1,16 +1,27 @@
 #!/bin/bash
-
 set -e
 
-echo "🚀 Starting Sepolia node setup..."
+echo "🔍 [0/8] Checking for Docker and Docker Compose..."
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "🐳 Docker not found. Installing prerequisites..."
+  curl -fsSL https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/install-prerequisites.sh | bash
+fi
+
+if ! sudo docker compose version >/dev/null 2>&1; then
+  echo "🐳 Docker Compose plugin not found. Installing prerequisites..."
+  curl -fsSL https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/install-prerequisites.sh | bash
+fi
+
+echo "✅ Docker and Compose are installed. Proceeding with Sepolia node setup..."
 
 # ---- 1. Create Directory Structure ----
-echo "🔧 [1/7] Creating directory structure..."
+echo "🔧 [1/8] Creating directory structure..."
 mkdir -p Ethereum/Execution Ethereum/Consensus
 echo "✅ Directory structure ready."
 
 # ---- 2. Generate JWT Secret ----
-echo "🔧 [2/7] Generating JWT secret..."
+echo "🔧 [2/8] Generating JWT secret..."
 if [ ! -f Ethereum/jwt.hex ]; then
   openssl rand -hex 32 | tr -d "\n" > Ethereum/jwt.hex
   echo "✅ JWT secret created."
@@ -19,7 +30,7 @@ else
 fi
 
 # ---- 3. Create Default Whitelist File ----
-echo "🔧 [3/7] Creating whitelist file..."
+echo "🔧 [3/8] Creating whitelist file..."
 if [ ! -f Ethereum/whitelist.lst ]; then
   echo "127.0.0.1/32" > Ethereum/whitelist.lst
   echo "✅ Whitelist file created."
@@ -28,7 +39,7 @@ else
 fi
 
 # ---- 4. Write Docker Compose File ----
-echo "🔧 [4/7] Writing Docker Compose file..."
+echo "🔧 [4/8] Writing Docker Compose file..."
 cat > Ethereum/docker-compose.yml <<EOF
 services:
   reth:
@@ -101,7 +112,7 @@ EOF
 echo "✅ Docker Compose file written."
 
 # ---- 5. Write HAProxy Config ----
-echo "🔧 [5/7] Writing HAProxy config..."
+echo "🔧 [5/8] Writing HAProxy config..."
 cat > Ethereum/haproxy.cfg <<EOF
 global
     maxconn 50000
@@ -136,13 +147,13 @@ EOF
 echo "✅ HAProxy config written."
 
 # ---- 6. Start Docker Compose Stack ----
-echo "🔧 [6/7] Starting Docker Compose stack..."
+echo "🔧 [6/8] Starting Docker Compose stack..."
 cd Ethereum
-docker compose up -d
+sudo docker compose up -d
 echo "✅ Docker Compose stack started."
 
 # ---- 7. Set Up UFW Firewall (Best Practice) ----
-echo "🔧 [7/7] Configuring UFW firewall rules..."
+echo "🔧 [7/8] Configuring UFW firewall rules..."
 if command -v ufw >/dev/null 2>&1; then
   sudo ufw allow 22/tcp           # Allow SSH (change port if you use a nonstandard SSH port)
   sudo ufw allow 80/tcp           # Allow HTTP (HAProxy)
@@ -161,7 +172,7 @@ echo "   - Reth (Execution, pruned/full, blobs, 1 month retention): http://<your
 echo "   - Prysm (Consensus, blob sidecars, 1 month retention): http://<your-server>/prysm/"
 echo ""
 echo "👉 To whitelist more IPs, edit Ethereum/whitelist.lst and restart haproxy:"
-echo "   docker restart haproxy"
+echo "   sudo docker restart haproxy"
 echo ""
 echo "💡 For Aztec sequencer/validator, use:"
 echo "   --l1-rpc-urls http://<your-server>/reth/"
