@@ -61,8 +61,6 @@ services:
       - --http.api=eth,net,web3,admin
       - --ws.api=eth,net,web3,admin
       - --authrpc.jwtsecret=/data/jwt.hex
-      - --blob-pruning
-      - --blob-retention=864000
     ports:
       - 8545:8545
       - 8546:8546
@@ -84,7 +82,6 @@ services:
       - --rpc-host=0.0.0.0
       - --grpc-gateway-host=0.0.0.0
       - --blob-storage-layout=by-epoch
-      - --blob-retention-epochs=9000
       - --checkpoint-sync-url=https://checkpoint-sync.sepolia.ethpandaops.io
       - --genesis-beacon-api-url=https://checkpoint-sync.sepolia.ethpandaops.io
       - --accept-terms-of-use
@@ -176,5 +173,5 @@ echo "   --l1-rpc-urls http://<your-server>/reth/"
 echo "   --l1-consensus-host-urls http://<your-server>/prysm/"
 echo ""
 echo "🛡️  Firewall allows SSH/HTTP/HTTPS only"
-echo "🗄️  Disk: ~200-250GB SSD recommended for 1 month retention"
+echo "🗄️  Disk: ~200-250GB SSD recommended"
 echo "-----------------------------------------------------------"
