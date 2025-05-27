@@ -58,11 +58,9 @@ services:
       - --ws
       - --authrpc.addr=0.0.0.0
       - --authrpc.port=8551
-      - --http.api=eth,net,web3,engine,admin
-      - --ws.api=eth,net,web3,engine,admin
+      - --http.api=eth,net,web3,admin
+      - --ws.api=eth,net,web3,admin
       - --authrpc.jwtsecret=/data/jwt.hex
-      - --blob-transaction-limit=128
-      - --blob-compression
       - --blob-pruning
       - --blob-retention=864000
     ports:
@@ -85,12 +83,11 @@ services:
       - --jwt-secret=/data/jwt.hex
       - --rpc-host=0.0.0.0
       - --grpc-gateway-host=0.0.0.0
-      - --enable-debug-rpc-endpoints
-      - --enable-blob-sidecar-retrieval
       - --blob-storage-layout=by-epoch
       - --blob-retention-epochs=9000
       - --checkpoint-sync-url=https://checkpoint-sync.sepolia.ethpandaops.io
       - --genesis-beacon-api-url=https://checkpoint-sync.sepolia.ethpandaops.io
+      - --accept-terms-of-use
     ports:
       - 3500:3500
       - 4000:4000
@@ -155,10 +152,10 @@ echo "✅ Docker Compose stack started."
 # ---- 7. Set Up UFW Firewall (Best Practice) ----
 echo "🔧 [7/8] Configuring UFW firewall rules..."
 if command -v ufw >/dev/null 2>&1; then
-  sudo ufw allow 22/tcp           # Allow SSH (change port if you use a nonstandard SSH port)
-  sudo ufw allow 80/tcp           # Allow HTTP (HAProxy)
-  sudo ufw allow 443/tcp          # Allow HTTPS (HAProxy)
-  sudo ufw --force enable         # Enable UFW, force yes to any prompt
+  sudo ufw allow 22/tcp
+  sudo ufw allow 80/tcp
+  sudo ufw allow 443/tcp
+  sudo ufw --force enable
   sudo ufw status verbose
   echo "✅ UFW firewall configured."
 else
@@ -168,16 +165,16 @@ fi
 echo ""
 echo "🎉 All steps complete!"
 echo "-----------------------------------------------------------"
-echo "   - Reth (Execution, pruned/full, blobs, 1 month retention): http://<your-server>/reth/"
-echo "   - Prysm (Consensus, blob sidecars, 1 month retention): http://<your-server>/prysm/"
+echo "   - Reth (Execution): http://<your-server>/reth/"
+echo "   - Prysm (Consensus): http://<your-server>/prysm/"
 echo ""
-echo "👉 To whitelist more IPs, edit Ethereum/whitelist.lst and restart haproxy:"
+echo "👉 To whitelist more IPs: edit Ethereum/whitelist.lst then:"
 echo "   sudo docker restart haproxy"
 echo ""
-echo "💡 For Aztec sequencer/validator, use:"
+echo "💡 For L2/L3 use:"
 echo "   --l1-rpc-urls http://<your-server>/reth/"
 echo "   --l1-consensus-host-urls http://<your-server>/prysm/"
 echo ""
-echo "🛡️  UFW firewall is configured to allow only SSH, HTTP, and HTTPS."
-echo "🗄️  For 1 month of blobs, provision at least 200–250 GB SSD for blob storage."
+echo "🛡️  Firewall allows SSH/HTTP/HTTPS only"
+echo "🗄️  Disk: ~200-250GB SSD recommended for 1 month retention"
 echo "-----------------------------------------------------------"
