@@ -1,0 +1,172 @@
+#!/bin/bash
+
+set -e
+
+echo "🚀 Starting Sepolia node setup..."
+
+# ---- 1. Create Directory Structure ----
+echo "🔧 [1/7] Creating directory structure..."
+mkdir -p Ethereum/Execution Ethereum/Consensus
+echo "✅ Directory structure ready."
+
+# ---- 2. Generate JWT Secret ----
+echo "🔧 [2/7] Generating JWT secret..."
+if [ ! -f Ethereum/jwt.hex ]; then
+  openssl rand -hex 32 | tr -d "\n" > Ethereum/jwt.hex
+  echo "✅ JWT secret created."
+else
+  echo "ℹ️  JWT secret already exists, skipping."
+fi
+
+# ---- 3. Create Default Whitelist File ----
+echo "🔧 [3/7] Creating whitelist file..."
+if [ ! -f Ethereum/whitelist.lst ]; then
+  echo "127.0.0.1/32" > Ethereum/whitelist.lst
+  echo "✅ Whitelist file created."
+else
+  echo "ℹ️  Whitelist file already exists, skipping."
+fi
+
+# ---- 4. Write Docker Compose File ----
+echo "🔧 [4/7] Writing Docker Compose file..."
+cat > Ethereum/docker-compose.yml <<EOF
+services:
+  reth:
+    image: ghcr.io/paradigmxyz/reth:latest
+    container_name: reth
+    restart: unless-stopped
+    volumes:
+      - ./Execution:/data
+      - ./jwt.hex:/data/jwt.hex
+    command:
+      - node
+      - --chain=sepolia
+      - --full
+      - --datadir=/data
+      - --http
+      - --ws
+      - --authrpc.addr=0.0.0.0
+      - --authrpc.port=8551
+      - --http.api=eth,net,web3,engine,admin
+      - --ws.api=eth,net,web3,engine,admin
+      - --authrpc.jwtsecret=/data/jwt.hex
+      - --blob-transaction-limit=128
+      - --blob-compression
+      - --blob-pruning
+      - --blob-retention=864000
+    ports:
+      - 8545:8545
+      - 8546:8546
+
+  prysm:
+    image: gcr.io/prysmaticlabs/prysm/beacon-chain:latest
+    container_name: prysm
+    restart: unless-stopped
+    depends_on:
+      - reth
+    volumes:
+      - ./Consensus:/data
+      - ./jwt.hex:/data/jwt.hex
+    command:
+      - --sepolia
+      - --datadir=/data
+      - --execution-endpoint=http://reth:8551
+      - --jwt-secret=/data/jwt.hex
+      - --rpc-host=0.0.0.0
+      - --grpc-gateway-host=0.0.0.0
+      - --enable-debug-rpc-endpoints
+      - --enable-blob-sidecar-retrieval
+      - --blob-storage-layout=by-epoch
+      - --blob-retention-epochs=9000
+      - --checkpoint-sync-url=https://checkpoint-sync.sepolia.ethpandaops.io
+      - --genesis-beacon-api-url=https://checkpoint-sync.sepolia.ethpandaops.io
+    ports:
+      - 3500:3500
+      - 4000:4000
+
+  haproxy:
+    image: haproxy:2.8
+    container_name: haproxy
+    restart: unless-stopped
+    depends_on:
+      - reth
+      - prysm
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
+      - ./whitelist.lst:/etc/haproxy/whitelist.lst
+    ports:
+      - 80:80
+      - 443:443
+EOF
+echo "✅ Docker Compose file written."
+
+# ---- 5. Write HAProxy Config ----
+echo "🔧 [5/7] Writing HAProxy config..."
+cat > Ethereum/haproxy.cfg <<EOF
+global
+    maxconn 50000
+    nbthread 4
+    cpu-map 1-4 0-3
+
+defaults
+    timeout connect 5s
+    timeout client 50s
+    timeout server 50s
+
+frontend http-in
+    bind *:80
+    bind *:443
+    mode http
+    acl valid_ip src -f /etc/haproxy/whitelist.lst
+    http-request deny if !valid_ip
+
+    use_backend reth_backend if { path_beg /reth/ }
+    use_backend prysm_backend if { path_beg /prysm/ }
+
+backend reth_backend
+    mode http
+    balance roundrobin
+    server reth1 reth:8545 maxconn 10000 check inter 5s
+
+backend prysm_backend
+    mode http
+    balance leastconn
+    server prysm1 prysm:3500 maxconn 5000 check inter 5s
+EOF
+echo "✅ HAProxy config written."
+
+# ---- 6. Start Docker Compose Stack ----
+echo "🔧 [6/7] Starting Docker Compose stack..."
+cd Ethereum
+docker compose up -d
+echo "✅ Docker Compose stack started."
+
+# ---- 7. Set Up UFW Firewall (Best Practice) ----
+echo "🔧 [7/7] Configuring UFW firewall rules..."
+if command -v ufw >/dev/null 2>&1; then
+  sudo ufw allow 22/tcp           # Allow SSH (change port if you use a nonstandard SSH port)
+  sudo ufw allow 80/tcp           # Allow HTTP (HAProxy)
+  sudo ufw allow 443/tcp          # Allow HTTPS (HAProxy)
+  sudo ufw --force enable         # Enable UFW, force yes to any prompt
+  sudo ufw status verbose
+  echo "✅ UFW firewall configured."
+else
+  echo "⚠️  UFW not installed. Skipping firewall setup."
+fi
+
+echo ""
+echo "🎉 All steps complete!"
+echo "-----------------------------------------------------------"
+echo "   - Reth (Execution, pruned/full, blobs, 1 month retention): http://<your-server>/reth/"
+echo "   - Prysm (Consensus, blob sidecars, 1 month retention): http://<your-server>/prysm/"
+echo ""
+echo "👉 To whitelist more IPs, edit Ethereum/whitelist.lst and restart haproxy:"
+echo "   docker restart haproxy"
+echo ""
+echo "💡 For Aztec sequencer/validator, use:"
+echo "   --l1-rpc-urls http://<your-server>/reth/"
+echo "   --l1-consensus-host-urls http://<your-server>/prysm/"
+echo ""
+echo "🛡️  UFW firewall is configured to allow only SSH, HTTP, and HTTPS."
+echo "🗄️  For 1 month of blobs, provision at least 200–250 GB SSD for blob storage."
+echo "-----------------------------------------------------------"
