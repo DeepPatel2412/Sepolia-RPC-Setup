@@ -159,19 +159,76 @@ else
   echo "⚠️  UFW not installed. Skipping firewall setup."
 fi
 
+# ---- 8. Install Dozzle Monitoring ----
+echo "🔧 [8/8] Installing Dozzle monitoring..."
+cd ..
+if ! sudo docker ps -a --format '{{.Names}}' | grep -q "^dozzle$"; then
+  sudo docker run -d \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -p 9999:8080 \
+    --name dozzle \
+    amir20/dozzle:latest
+  echo "✅ Dozzle installed."
+else
+  echo "ℹ️  Dozzle container already exists, skipping."
+fi
+
+# ---- Get Server IPs ----
+LOCAL_IP="127.0.0.1"
+SERVER_IP=$(hostname -I | awk '{print $1}')
+PUBLIC_IP=$(curl -4 -s ifconfig.me || echo $SERVER_IP)
+
+# ---- Final Output ----
 echo ""
 echo "🎉 All steps complete!"
 echo "-----------------------------------------------------------"
-echo "   - Reth (Execution): http://<your-server>/reth/"
-echo "   - Prysm (Consensus): http://<your-server>/prysm/"
+echo "   - Reth (Execution):"
+echo "       Local:   http://${LOCAL_IP}/reth/"
+echo "       Server:  http://${SERVER_IP}/reth/"
+echo "       Public:  http://${PUBLIC_IP}/reth/"
+echo "   - Prysm (Consensus):"
+echo "       Local:   http://${LOCAL_IP}/prysm/"
+echo "       Server:  http://${SERVER_IP}/prysm/"
+echo "       Public:  http://${PUBLIC_IP}/prysm/"
 echo ""
 echo "👉 To whitelist more IPs: edit Ethereum/whitelist.lst then:"
 echo "   sudo docker restart haproxy"
 echo ""
 echo "💡 For L2/L3 use:"
-echo "   --l1-rpc-urls http://<your-server>/reth/"
-echo "   --l1-consensus-host-urls http://<your-server>/prysm/"
+echo "   --l1-rpc-urls http://${SERVER_IP}/reth/"
+echo "   --l1-consensus-host-urls http://${SERVER_IP}/prysm/"
 echo ""
 echo "🛡️  Firewall allows SSH/HTTP/HTTPS only"
-echo "🗄️  Disk: ~200-250GB SSD recommended"
+echo "🗄️  Recommended specs: 750GB-1TB SSD, 4+ CPU cores, 16GB+ RAM"
+echo ""
+echo "👁️  Dozzle Monitoring (logs):"
+echo "   http://${SERVER_IP}:9999/"
+echo "   (or http://${PUBLIC_IP}:9999/ if public IP is accessible)"
 echo "-----------------------------------------------------------"
+
+# ---- 9. Offer to Add Whitelist IP ----
+echo ""
+read -p "Would you like to add an additional whitelist IP (e.g. your Aztec VPS IP)? [Y/n]: " ADD_WL
+ADD_WL=${ADD_WL:-Y}
+
+if [[ "$ADD_WL" =~ ^[Yy]$ ]]; then
+  read -p "Enter the IP address or CIDR to whitelist (e.g. 123.123.123.123 or 123.123.123.0/24): " WL_IP
+  if [[ "$WL_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(/[0-9]+)?$ ]]; then
+    if grep -qxF "$WL_IP" Ethereum/whitelist.lst; then
+      echo "ℹ️  IP $WL_IP is already in the whitelist."
+    else
+      echo "$WL_IP" >> Ethereum/whitelist.lst
+      echo "✅ Added $WL_IP to whitelist."
+      echo "Restarting HAProxy container to apply changes..."
+      sudo docker restart haproxy
+      echo "✅ HAProxy restarted."
+    fi
+  else
+    echo "❌ Invalid IP format. Please edit Ethereum/whitelist.lst manually if needed."
+  fi
+else
+  echo "No additional IP added to whitelist."
+fi
+
+echo ""
+echo "🚀 Setup complete. Enjoy your Sepolia node!"
