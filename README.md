@@ -5,10 +5,10 @@ Deploy and manage an Ethereum Sepolia RPC node on your VPS in seconds with a sin
 ------------------------------------------
 ** Minimum Requirements: **
 Ubuntu 22.04+ recommended
-4+ CPU cores
-8GB+ RAM
-750GB+ SSD
-Root or sudo access
+- 4+ CPU cores
+- 8GB+ RAM
+- 750GB+ SSD
+- Root or sudo access
 ------------------------------------------
 
 ## 🚀 Quick Start & Management Guide
