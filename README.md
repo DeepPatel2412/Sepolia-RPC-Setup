@@ -18,7 +18,7 @@ Ubuntu 22.04+ recommended
 bash <(curl -fsSL https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/sepolia-RPC-setup)
 ```
 ------------------------------------------
-**To clean up, run:**
+**To clean up (Delete), run:**
 ```
 bash <(curl -fsSL https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/sepolia-RPC-cleanup)
 ```
