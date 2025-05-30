@@ -18,8 +18,12 @@ Ubuntu 22.04+ recommended
 ```
 bash <(curl -Ls https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/setup-sepolia.sh)
 ```
+
 ## 🔍 Monitor node logs (Run in any browser)
-- http://your-RPC-vpsIP:9999/
+```
+http://your-RPC-vpsIP:9999/
+```
+Replace your VPS ip and run open it in browser. 
 ------------------------------------------
 ## 💭 What happens when you run the setup command?
 - Checks your VPS for required CPU, RAM, and disk space.
