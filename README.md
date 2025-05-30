@@ -2,7 +2,12 @@
 
 Deploy and manage an Ethereum Sepolia RPC node on your VPS in seconds with a single command. This solution uses Dockerized **Reth**, **Prysm**, **HAProxy**, and **Dozzle** for a secure, production-ready testnet setup. Cleanup is just as easy—reset or remove everything with one command.
 
----
+------------------------------------------
+**Requirements:**
+- Ubuntu 22.04+ recommended
+- 4+ CPU cores, 8GB+ RAM, 750GB+ SSD
+- Root or sudo access
+------------------------------------------
 
 ## 🚀 Quick Start & Management Guide
 
@@ -11,12 +16,10 @@ Deploy and manage an Ethereum Sepolia RPC node on your VPS in seconds with a sin
 bash <(curl -fsSL https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/sepolia-RPC-setup)
 ```
  
-
 **To clean up, run:**
 ```
 bash <(curl -fsSL https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/sepolia-RPC-cleanup)
 ```
-  
 
 **What happens when you run the setup command?**
 - Checks your VPS for required CPU, RAM, and disk space.
@@ -27,6 +30,18 @@ bash <(curl -fsSL https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Se
 - Configures your firewall to only allow necessary ports.
 - Starts all services in Docker containers.
 - Prints your RPC, Beacon, and monitoring URLs.
+
+## 📂 Directory Structure
+After setup, your directory tree will look like this:
+```
+Ethereum/
+├── Execution/
+├── Consensus/
+├── docker-compose.yml
+├── haproxy.cfg
+├── jwt.hex
+└── whitelist.lst
+```
 
 **What happens when you run the cleanup command?**
 - Lets you choose which components to remove (Reth, Prysm, HAProxy, Dozzle, or all).
@@ -39,10 +54,13 @@ bash <(curl -fsSL https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Se
 - **Prysm (Beacon):** `http://<YOUR_SERVER_IP>/prysm/`
 - **Dozzle Monitoring:** `http://<YOUR_SERVER_IP>:9999`
 
-**Requirements:**
-- Ubuntu 22.04+ recommended
-- 4+ CPU cores, 8GB+ RAM, 750GB+ SSD
-- Root or sudo access
+## 📂 Add IPs to your RPC Whitelist (Run)
+```
+cd Ethereum
+echo "YOUR_IP/CIDR" >> whitelist.lst
+sudo docker restart haproxy
+cd
+```
 
 **Security Tips:**
 - Only whitelist trusted IPs for RPC access.
