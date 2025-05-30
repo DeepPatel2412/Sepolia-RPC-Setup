@@ -12,6 +12,7 @@ Deploy and manage an Ethereum Sepolia RPC node on your VPS in seconds with a sin
 ## 🚀 Quick Start & Management Guide
 
 **To install, run:**
+INITIAL SYNC WILL TAKE 1-3 DAYS depending on your specs and SSD/Network Speed, Until than you won't be able to use the rpc.
 ```
 bash <(curl -fsSL https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/sepolia-RPC-setup)
 ```
