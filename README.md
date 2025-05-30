@@ -18,8 +18,7 @@ Ubuntu 22.04+ recommended
 ```
 bash <(curl -Ls https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/setup-sepolia.sh)
 ```
-------------------------------------------
-## Monitor node logs (Run in any browser)
+## 🔍 Monitor node logs (Run in any browser)
 - http://your-RPC-vpsIP:9999/
 ------------------------------------------
 ## 💭 What happens when you run the setup command?
