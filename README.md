@@ -81,6 +81,6 @@ bash <(curl -fsSL https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Se
 - **Need help?**  
 - Open an [issue](https://github.com/DeepPatel2412/Sepolia-RPC-Setup/issues) on the repo.
 - Or reach out on Discord: [creed2412](https://discordapp.com/users/517654585956106261)
----
-
+------------------------------------------
+------------------------------------------
 # Happy Node Running! 🚀
