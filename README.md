@@ -77,11 +77,11 @@ cd
 bash <(curl -fsSL https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/sepolia-RPC-cleanup)
 ```
 This will be the options available to choose from :
-- 1) Reth
-- 2) Prysm
-- 3) HAproxy
-- 4) Dozzle
-- 5) All
+- Reth
+- Prysm
+- HAproxy
+- Dozzle
+- All
 ------------------------------------------
 ## 💭 What happens when you run the cleanup command?
 - Lets you choose which components to remove (Reth, Prysm, HAProxy, Dozzle, or all).
