@@ -46,7 +46,7 @@ Ethereum/
 **Endpoints after setup:**
 - **Reth (RPC):** `http://<YOUR_SERVER_IP>/reth/`
 - **Prysm (Beacon):** `http://<YOUR_SERVER_IP>/prysm/`
-- **Dozzle Monitoring:** `http://<YOUR_SERVER_IP>:9999`
+- **Dozzle Monitoring:** `http://<YOUR_SERVER_IP>:9999` (Open In Browser To Monitor Node Logs)
 ------------------------------------------
 ## 📍 Add IPs to your Whitelist (Run)
 ```
