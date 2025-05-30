@@ -43,12 +43,6 @@ Ethereum/
 └── whitelist.lst
 ```
 ------------------------------------------
-**What happens when you run the cleanup command?**
-- Lets you choose which components to remove (Reth, Prysm, HAProxy, Dozzle, or all).
-- Stops and deletes the selected Docker containers and images.
-- Optionally removes the Ethereum data directory and related config files.
-- Frees up disk space and resets your environment for a fresh start.
-------------------------------------------
 **Endpoints after setup:**
 - **Reth (RPC):** `http://<YOUR_SERVER_IP>/reth/`
 - **Prysm (Beacon):** `http://<YOUR_SERVER_IP>/prysm/`
@@ -66,6 +60,12 @@ cd
 - Only whitelist trusted IPs for RPC access.
 - Keep your JWT secret safe (auto-generated).
 - Regularly update your server and Docker images.
+------------------------------------------
+**What happens when you run the cleanup command?**
+- Lets you choose which components to remove (Reth, Prysm, HAProxy, Dozzle, or all).
+- Stops and deletes the selected Docker containers and images.
+- Optionally removes the Ethereum data directory and related config files.
+- Frees up disk space and resets your environment for a fresh start.
 ------------------------------------------
 ------------------------------------------
 **Need help?**  
