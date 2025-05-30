@@ -12,7 +12,7 @@ Ubuntu 22.04+ recommended
 ------------------------------------------
 
 ## 🚀 Quick Start & Management Guide
-# INITIAL SYNC WILL TAKE 1-3 DAYS depending on your specs and SSD/Network Speed, Until than you won't be able to use the rpc.
+### INITIAL SYNC WILL TAKE 1-3 DAYS depending on your specs and SSD/Network Speed, Until than you won't be able to use the rpc after setup .
 **To install, run:**
 ```
 bash <(curl -fsSL https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/sepolia-RPC-setup)
