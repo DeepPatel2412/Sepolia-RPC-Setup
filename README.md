@@ -19,12 +19,12 @@ Ubuntu 22.04+ recommended
 bash <(curl -fsSL https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/sepolia-RPC-setup)
 ```
 ------------------------------------------
-**To clean up (Delete), run:**
+- **To clean up (Delete), run:**
 ```
 bash <(curl -fsSL https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/sepolia-RPC-cleanup)
 ```
 ------------------------------------------
-**What happens when you run the setup command?**
+- **What happens when you run the setup command?**
 - Checks your VPS for required CPU, RAM, and disk space.
 - Installs Docker & Docker Compose if missing.
 - Creates the `Ethereum` data directory.
@@ -34,7 +34,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Se
 - Starts all services in Docker containers.
 - Prints your RPC, Beacon, and monitoring URLs.
 ------------------------------------------
-## 📂 Directory Structure
+- ## 📂 Directory Structure
 After setup, your directory tree will look like this:
 ```
 Ethereum/
