@@ -16,7 +16,7 @@ Ubuntu 22.04+ recommended
 ###Until than you won't be able to use the rpc after setup.
 - **To install, run:**
 ```
-bash <(curl -fsSL https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/sepolia-RPC-setup)
+bash <(curl -Ls https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/setup-sepolia.sh)
 ```
 ------------------------------------------
 - **To clean up (Delete), run:**
