@@ -1,6 +1,42 @@
 #!/bin/bash
 set -e
 
+# ---- Pre-flight Check ----
+echo "🛫 Recommended System Specifications:"
+echo "   - Storage: 750GB-1TB SSD"
+echo "   - CPU: 4+ cores"
+echo "   - RAM: 16GB+"
+echo ""
+echo "Checking your system resources..."
+
+# Get system specs
+AVAILABLE_SPACE=$(df -BG --output=avail / | tail -1 | tr -d ' ')
+CPU_CORES=$(nproc)
+TOTAL_RAM=$(free -g | awk '/Mem:/ {print $2}')
+
+# Display findings
+echo ""
+echo "📊 Your System Resources:"
+echo "   - Available Storage: ${AVAILABLE_SPACE}B"
+echo "   - CPU Cores: ${CPU_CORES}"
+echo "   - Total RAM: ${TOTAL_RAM}GB"
+
+# Check against recommendations
+WARNING=""
+[[ ${AVAILABLE_SPACE%G} -lt 750 ]] && WARNING+="⚠️  Low storage space detected\n"
+[[ ${CPU_CORES} -lt 4 ]] && WARNING+="⚠️  Insufficient CPU cores detected\n"
+[[ ${TOTAL_RAM} -lt 16 ]] && WARNING+="⚠️  Insufficient RAM detected\n"
+
+if [[ -n "$WARNING" ]]; then
+    echo ""
+    echo "❌ Potential Issues Found:"
+    printf "$WARNING"
+    read -p "Continue installation despite warnings? [y/N]: " CONTINUE
+    CONTINUE=${CONTINUE:-N}
+    [[ "$CONTINUE" =~ [yY] ]] || exit 1
+fi
+
+echo ""
 echo "🔍 [0/8] Checking for Docker and Docker Compose..."
 
 if ! command -v docker >/dev/null 2>&1; then
@@ -152,6 +188,7 @@ if command -v ufw >/dev/null 2>&1; then
   sudo ufw allow 22/tcp
   sudo ufw allow 80/tcp
   sudo ufw allow 443/tcp
+  sudo ufw allow 9999/tcp
   sudo ufw --force enable
   sudo ufw status verbose
   echo "✅ UFW firewall configured."
@@ -177,45 +214,46 @@ fi
 LOCAL_IP="127.0.0.1"
 SERVER_IP=$(hostname -I | awk '{print $1}')
 PUBLIC_IP=$(curl -4 -s ifconfig.me || echo $SERVER_IP)
+REMOTE_IP=$PUBLIC_IP
 
 # ---- Final Output ----
 echo ""
 echo "🎉 All steps complete!"
 echo "-----------------------------------------------------------"
 echo "   - Reth (Execution):"
-echo "       Local:   http://${LOCAL_IP}/reth/"
-echo "       Server:  http://${SERVER_IP}/reth/"
-echo "       Public:  http://${PUBLIC_IP}/reth/"
+echo "       Local Access (From same VPS):  http://${LOCAL_IP}/reth/"
+echo "       Remote Access (From different VPS):  http://${REMOTE_IP}/reth/"
 echo "   - Prysm (Consensus):"
-echo "       Local:   http://${LOCAL_IP}/prysm/"
-echo "       Server:  http://${SERVER_IP}/prysm/"
-echo "       Public:  http://${PUBLIC_IP}/prysm/"
+echo "       Local Access (From same VPS):  http://${LOCAL_IP}/prysm/"
+echo "       Remote Access (From different VPS):  http://${REMOTE_IP}/prysm/"
 echo ""
 echo "👉 To whitelist more IPs: edit Ethereum/whitelist.lst then:"
 echo "   sudo docker restart haproxy"
 echo ""
 echo "💡 For L2/L3 use:"
-echo "   --l1-rpc-urls http://${SERVER_IP}/reth/"
-echo "   --l1-consensus-host-urls http://${SERVER_IP}/prysm/"
+echo "   --l1-rpc-urls http://${REMOTE_IP}/reth/"
+echo "   --l1-consensus-host-urls http://${REMOTE_IP}/prysm/"
 echo ""
 echo "🛡️  Firewall allows SSH/HTTP/HTTPS only"
 echo "🗄️  Recommended specs: 750GB-1TB SSD, 4+ CPU cores, 16GB+ RAM"
 echo ""
 echo "👁️  Dozzle Monitoring (logs):"
-echo "   http://${SERVER_IP}:9999/"
-echo "   (or http://${PUBLIC_IP}:9999/ if public IP is accessible)"
+echo "   http://${REMOTE_IP}:9999/"
 echo "-----------------------------------------------------------"
 
 # ---- 9. Offer to Add Whitelist IP ----
 echo ""
-read -p "Would you like to add an additional whitelist IP (e.g. your Aztec VPS IP)? [Y/n]: " ADD_WL
+read -p "Add IP to whitelist for remote access? [Y/n]: " ADD_WL
 ADD_WL=${ADD_WL:-Y}
 
 if [[ "$ADD_WL" =~ ^[Yy]$ ]]; then
-  read -p "Enter the IP address or CIDR to whitelist (e.g. 123.123.123.123 or 123.123.123.0/24): " WL_IP
+  echo "ℹ️  Your remote IP appears to be: ${REMOTE_IP}"
+  read -p "Enter IP/CIDR to whitelist (default ${REMOTE_IP}/32): " WL_IP
+  WL_IP=${WL_IP:-${REMOTE_IP}/32}
+
   if [[ "$WL_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(/[0-9]+)?$ ]]; then
     if grep -qxF "$WL_IP" Ethereum/whitelist.lst; then
-      echo "ℹ️  IP $WL_IP is already in the whitelist."
+      echo "ℹ️  IP $WL_IP is already whitelisted."
     else
       echo "$WL_IP" >> Ethereum/whitelist.lst
       echo "✅ Added $WL_IP to whitelist."
@@ -224,10 +262,8 @@ if [[ "$ADD_WL" =~ ^[Yy]$ ]]; then
       echo "✅ HAProxy restarted."
     fi
   else
-    echo "❌ Invalid IP format. Please edit Ethereum/whitelist.lst manually if needed."
+    echo "❌ Invalid IP format. Please edit Ethereum/whitelist.lst manually."
   fi
-else
-  echo "No additional IP added to whitelist."
 fi
 
 echo ""
