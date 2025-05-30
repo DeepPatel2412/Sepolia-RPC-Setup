@@ -24,7 +24,11 @@ bash <(curl -Ls https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setu
 http://your-RPC-vpsIP:9999/
 ```
 Replace your VPS ip and run open it in browser. 
-
+------------------------------------------
+## ✔️ Endpoints after setup
+- **Reth (RPC):** `http://<YOUR_SERVER_IP>/reth/`
+- **Prysm (Beacon):** `http://<YOUR_SERVER_IP>/prysm/`
+- **Dozzle Monitoring:** `http://<YOUR_SERVER_IP>:9999` (Open In Browser To Monitor Node Logs)
 ------------------------------------------
 ## 💭 What happens when you run the setup command?
 - Checks your VPS for required CPU, RAM, and disk space.
@@ -47,11 +51,6 @@ Ethereum/
 ├── jwt.hex
 └── whitelist.lst
 ```
-------------------------------------------
-## ✔️ Endpoints after setup
-- **Reth (RPC):** `http://<YOUR_SERVER_IP>/reth/`
-- **Prysm (Beacon):** `http://<YOUR_SERVER_IP>/prysm/`
-- **Dozzle Monitoring:** `http://<YOUR_SERVER_IP>:9999` (Open In Browser To Monitor Node Logs)
 ------------------------------------------
 ## 📍 Add IPs to your Whitelist (Run)
 ```
