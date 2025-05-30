@@ -7,13 +7,15 @@ Deploy and manage an Ethereum Sepolia RPC node on your VPS in seconds with a sin
 ## 🚀 Quick Start & Management Guide
 
 **To install, run:**
+```
 bash <(curl -fsSL https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/sepolia-RPC-setup)
-
+```
  
 
 **To clean up, run:**
+```
 bash <(curl -fsSL https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/sepolia-RPC-cleanup)
-
+```
   
 
 **What happens when you run the setup command?**
