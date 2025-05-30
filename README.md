@@ -25,6 +25,7 @@ http://your-RPC-vpsIP:9999/
 ```
 Replace your VPS ip and run open it in browser. 
 ------------------------------------------
+------------------------------------------
 ## 💭 What happens when you run the setup command?
 - Checks your VPS for required CPU, RAM, and disk space.
 - Installs Docker & Docker Compose if missing.
