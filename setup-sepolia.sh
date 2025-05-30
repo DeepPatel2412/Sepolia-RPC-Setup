@@ -1,81 +1,90 @@
 #!/bin/bash
 set -e
 
+# ---- Colors ----
+NC='\033[0m'
+BOLD='\033[1m'
+GREEN='\033[32m'
+RED='\033[31m'
+YELLOW='\033[33m'
+CYAN='\033[36m'
+GRAY='\033[90m'
+
 # ---- Pre-flight Check ----
-echo "🛫 Recommended System Specifications:"
-echo "   - Storage: 750GB-1TB SSD"
-echo "   - CPU: 4+ cores"
-echo "   - RAM: 16GB+"
-echo ""
+echo -e "${CYAN}========================================"
+echo -e "     ETHEREUM SEPOLIA NODE INSTALLER"
+echo -e "========================================${NC}"
+echo -e "${BOLD}Recommended System Specifications:${NC}"
+echo -e "· Storage: 750GB-1TB SSD"
+echo -e "· CPU: 4+ cores"
+echo -e "· RAM: 16GB+"
+echo -e "${CYAN}----------------------------------------${NC}"
 echo "Checking your system resources..."
 
-# Get system specs
 AVAILABLE_SPACE=$(df -BG --output=avail / | tail -1 | tr -d ' ')
 CPU_CORES=$(nproc)
 TOTAL_RAM=$(free -g | awk '/Mem:/ {print $2}')
 
-# Display findings
-echo ""
-echo "📊 Your System Resources:"
-echo "   - Available Storage: ${AVAILABLE_SPACE}B"
-echo "   - CPU Cores: ${CPU_CORES}"
-echo "   - Total RAM: ${TOTAL_RAM}GB"
+echo -e "\n${BOLD}Your System Resources:${NC}"
+echo -e "· Available Storage: ${AVAILABLE_SPACE}B"
+echo -e "· CPU Cores: ${CPU_CORES}"
+echo -e "· Total RAM: ${TOTAL_RAM}GB"
 
-# Check against recommendations
 WARNING=""
-[[ ${AVAILABLE_SPACE%G} -lt 750 ]] && WARNING+="⚠️  Low storage space detected\n"
-[[ ${CPU_CORES} -lt 4 ]] && WARNING+="⚠️  Insufficient CPU cores detected\n"
-[[ ${TOTAL_RAM} -lt 16 ]] && WARNING+="⚠️  Insufficient RAM detected\n"
+[[ ${AVAILABLE_SPACE%G} -lt 750 ]] && WARNING+="· ${RED}Low storage space detected${NC}\n"
+[[ ${CPU_CORES} -lt 4 ]] && WARNING+="· ${RED}Insufficient CPU cores detected${NC}\n"
+[[ ${TOTAL_RAM} -lt 16 ]] && WARNING+="· ${RED}Insufficient RAM detected${NC}\n"
 
 if [[ -n "$WARNING" ]]; then
-    echo ""
-    echo "❌ Potential Issues Found:"
+    echo -e "\n${RED}Potential Issues Found:${NC}"
     printf "$WARNING"
     read -p "Continue installation despite warnings? [y/N]: " CONTINUE
     CONTINUE=${CONTINUE:-N}
     [[ "$CONTINUE" =~ [yY] ]] || exit 1
 fi
 
-echo ""
-echo "🔍 [0/8] Checking for Docker and Docker Compose..."
+echo -e "${CYAN}----------------------------------------${NC}"
+
+# ---- 0. Check Docker and Compose ----
+echo -e "${CYAN}Checking for Docker and Docker Compose...${NC}"
 
 if ! command -v docker >/dev/null 2>&1; then
-  echo "🐳 Docker not found. Installing prerequisites..."
+  echo -e "${YELLOW}Docker not found. Installing prerequisites...${NC}"
   curl -fsSL https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/install-prerequisites.sh | bash
 fi
 
 if ! sudo docker compose version >/dev/null 2>&1; then
-  echo "🐳 Docker Compose plugin not found. Installing prerequisites..."
+  echo -e "${YELLOW}Docker Compose plugin not found. Installing prerequisites...${NC}"
   curl -fsSL https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/install-prerequisites.sh | bash
 fi
 
-echo "✅ Docker and Compose are installed. Proceeding with Sepolia node setup..."
+echo -e "${GREEN}Docker and Compose are installed. Proceeding with Sepolia node setup...${NC}"
 
 # ---- 1. Create Directory Structure ----
-echo "🔧 [1/8] Creating directory structure..."
+echo -e "${CYAN}Creating directory structure...${NC}"
 mkdir -p Ethereum/Execution Ethereum/Consensus
-echo "✅ Directory structure ready."
+echo -e "${GREEN}Directory structure ready.${NC}"
 
 # ---- 2. Generate JWT Secret ----
-echo "🔧 [2/8] Generating JWT secret..."
+echo -e "${CYAN}Generating JWT secret...${NC}"
 if [ ! -f Ethereum/jwt.hex ]; then
   openssl rand -hex 32 | tr -d "\n" > Ethereum/jwt.hex
-  echo "✅ JWT secret created."
+  echo -e "${GREEN}JWT secret created.${NC}"
 else
-  echo "ℹ️  JWT secret already exists, skipping."
+  echo -e "${YELLOW}JWT secret already exists, skipping.${NC}"
 fi
 
 # ---- 3. Create Default Whitelist File ----
-echo "🔧 [3/8] Creating whitelist file..."
+echo -e "${CYAN}Creating whitelist file...${NC}"
 if [ ! -f Ethereum/whitelist.lst ]; then
   echo "127.0.0.1/32" > Ethereum/whitelist.lst
-  echo "✅ Whitelist file created."
+  echo -e "${GREEN}Whitelist file created.${NC}"
 else
-  echo "ℹ️  Whitelist file already exists, skipping."
+  echo -e "${YELLOW}Whitelist file already exists, skipping.${NC}"
 fi
 
 # ---- 4. Write Docker Compose File ----
-echo "🔧 [4/8] Writing Docker Compose file..."
+echo -e "${CYAN}Writing Docker Compose file...${NC}"
 cat > Ethereum/docker-compose.yml <<EOF
 services:
   reth:
@@ -139,10 +148,10 @@ services:
       - 80:80
       - 443:443
 EOF
-echo "✅ Docker Compose file written."
+echo -e "${GREEN}Docker Compose file written.${NC}"
 
 # ---- 5. Write HAProxy Config ----
-echo "🔧 [5/8] Writing HAProxy config..."
+echo -e "${CYAN}Writing HAProxy config...${NC}"
 cat > Ethereum/haproxy.cfg <<EOF
 global
     maxconn 50000
@@ -174,16 +183,16 @@ backend prysm_backend
     balance leastconn
     server prysm1 prysm:3500 maxconn 5000 check inter 5s
 EOF
-echo "✅ HAProxy config written."
+echo -e "${GREEN}HAProxy config written.${NC}"
 
 # ---- 6. Start Docker Compose Stack ----
-echo "🔧 [6/8] Starting Docker Compose stack..."
+echo -e "${CYAN}Starting Docker Compose stack...${NC}"
 cd Ethereum
 sudo docker compose up -d
-echo "✅ Docker Compose stack started."
+echo -e "${GREEN}Docker Compose stack started.${NC}"
 
 # ---- 7. Set Up UFW Firewall (Best Practice) ----
-echo "🔧 [7/8] Configuring UFW firewall rules..."
+echo -e "${CYAN}Configuring UFW firewall rules...${NC}"
 if command -v ufw >/dev/null 2>&1; then
   sudo ufw allow 22/tcp
   sudo ufw allow 80/tcp
@@ -191,13 +200,13 @@ if command -v ufw >/dev/null 2>&1; then
   sudo ufw allow 9999/tcp
   sudo ufw --force enable
   sudo ufw status verbose
-  echo "✅ UFW firewall configured."
+  echo -e "${GREEN}UFW firewall configured.${NC}"
 else
-  echo "⚠️  UFW not installed. Skipping firewall setup."
+  echo -e "${YELLOW}UFW not installed. Skipping firewall setup.${NC}"
 fi
 
 # ---- 8. Install Dozzle Monitoring ----
-echo "🔧 [8/8] Installing Dozzle monitoring..."
+echo -e "${CYAN}Installing Dozzle monitoring...${NC}"
 cd ..
 if ! sudo docker ps -a --format '{{.Names}}' | grep -q "^dozzle$"; then
   sudo docker run -d \
@@ -205,9 +214,9 @@ if ! sudo docker ps -a --format '{{.Names}}' | grep -q "^dozzle$"; then
     -p 9999:8080 \
     --name dozzle \
     amir20/dozzle:latest
-  echo "✅ Dozzle installed."
+  echo -e "${GREEN}Dozzle installed.${NC}"
 else
-  echo "ℹ️  Dozzle container already exists, skipping."
+  echo -e "${YELLOW}Dozzle container already exists, skipping.${NC}"
 fi
 
 # ---- Get Server IPs ----
@@ -217,29 +226,37 @@ PUBLIC_IP=$(curl -4 -s ifconfig.me || echo $SERVER_IP)
 REMOTE_IP=$PUBLIC_IP
 
 # ---- Final Output ----
-echo ""
-echo "🎉 All steps complete!"
-echo "-----------------------------------------------------------"
-echo "   - Reth (Execution):"
-echo "       Local Access (From same VPS):  http://${LOCAL_IP}/reth/"
-echo "       Remote Access (From different VPS):  http://${REMOTE_IP}/reth/"
-echo "   - Prysm (Consensus):"
-echo "       Local Access (From same VPS):  http://${LOCAL_IP}/prysm/"
-echo "       Remote Access (From different VPS):  http://${REMOTE_IP}/prysm/"
-echo ""
-echo "👉 To whitelist more IPs: edit Ethereum/whitelist.lst then:"
-echo "   sudo docker restart haproxy"
-echo ""
-echo "💡 For L2/L3 use:"
-echo "   --l1-rpc-urls http://${REMOTE_IP}/reth/"
-echo "   --l1-consensus-host-urls http://${REMOTE_IP}/prysm/"
-echo ""
-echo "🛡️  Firewall allows SSH/HTTP/HTTPS only"
-echo "🗄️  Recommended specs: 750GB-1TB SSD, 4+ CPU cores, 16GB+ RAM"
-echo ""
-echo "👁️  Dozzle Monitoring (logs):"
-echo "   http://${REMOTE_IP}:9999/"
-echo "-----------------------------------------------------------"
+echo -e "${CYAN}========================================"
+echo -e "         ETHEREUM SEPOLIA NODE STATUS"
+echo -e "========================================${NC}"
+
+echo -e "${BOLD}Local (Aztec in same VPS)${NC}"
+echo -e "· Sepolia RPC    : ${GREEN}✔${NC} ${YELLOW}http://127.0.0.1/reth/${NC}"
+echo -e "· Beacon RPC     : ${GREEN}✔${NC} ${YELLOW}http://127.0.0.1/prysm/${NC}"
+
+echo -e "\n${BOLD}Remote (Aztec in other VPS)${NC}"
+echo -e "· Sepolia RPC    : ${GREEN}✔${NC} ${YELLOW}http://${REMOTE_IP}/reth/${NC}"
+echo -e "· Beacon RPC     : ${GREEN}✔${NC} ${YELLOW}http://${REMOTE_IP}/prysm/${NC}"
+
+echo -e "\n${BOLD}Monitoring${NC}"
+echo -e "· Dozzle         : ${GREEN}✔${NC} ${YELLOW}http://${REMOTE_IP}:9999/${NC}"
+
+echo -e "\n${BOLD}Whitelist file${NC}"
+echo -e "· ${YELLOW}Ethereum/whitelist.lst${NC}"
+
+echo -e "${CYAN}----------------------------------------${NC}"
+echo -e "${BOLD}Example L2/L3 usage:${NC}"
+echo -e "${CYAN}----------------------------------------${NC}"
+echo -e "${GRAY}--l1-rpc-urls http://${REMOTE_IP}/reth/"
+echo -e "--l1-consensus-host-urls http://${REMOTE_IP}/prysm/${NC}"
+echo -e "${CYAN}----------------------------------------${NC}"
+
+echo -e "${BOLD}To whitelist more IPs:${NC} edit ${YELLOW}Ethereum/whitelist.lst${NC} then:"
+echo -e "  sudo docker restart haproxy"
+
+echo -e "${CYAN}----------------------------------------${NC}"
+echo -e "${BOLD}Firewall:${NC} allows SSH/HTTP/HTTPS only"
+echo -e "${CYAN}========================================${NC}"
 
 # ---- 9. Offer to Add Whitelist IP ----
 echo ""
@@ -253,18 +270,18 @@ if [[ "$ADD_WL" =~ ^[Yy]$ ]]; then
 
   if [[ "$WL_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(/[0-9]+)?$ ]]; then
     if grep -qxF "$WL_IP" Ethereum/whitelist.lst; then
-      echo "ℹ️  IP $WL_IP is already whitelisted."
+      echo -e "${YELLOW}IP $WL_IP is already whitelisted.${NC}"
     else
       echo "$WL_IP" >> Ethereum/whitelist.lst
-      echo "✅ Added $WL_IP to whitelist."
+      echo -e "${GREEN}Added $WL_IP to whitelist.${NC}"
       echo "Restarting HAProxy container to apply changes..."
       sudo docker restart haproxy
-      echo "✅ HAProxy restarted."
+      echo -e "${GREEN}HAProxy restarted.${NC}"
     fi
   else
-    echo "❌ Invalid IP format. Please edit Ethereum/whitelist.lst manually."
+    echo -e "${RED}Invalid IP format. Please edit Ethereum/whitelist.lst manually.${NC}"
   fi
 fi
 
 echo ""
-echo "🚀 Setup complete. Enjoy your Sepolia node!"
+echo -e "${GREEN}Setup complete. Enjoy your Sepolia node!${NC}"
