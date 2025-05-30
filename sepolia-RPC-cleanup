@@ -1,0 +1,175 @@
+#!/bin/bash
+set -e
+
+# Colors (214 is orange in most terminals)
+ORANGE="\e[38;5;214m"
+GREEN="\e[32m"
+RED="\e[31m"
+YELLOW="\e[33m"
+RESET="\e[0m"
+BOLD="\e[1m"
+
+# Green double line
+green_line() {
+    local width=40
+    local line
+    line=$(printf "%${width}s" | tr ' ' '=')
+    echo -e "${GREEN}${line}${RESET}"
+}
+
+# Centered orange banner with green lines
+center_orange_banner() {
+    local text=" $1 "
+    local width=40
+    local text_len=${#text}
+    local pad_total=$((width - text_len))
+    local pad_left=$((pad_total / 2))
+    local pad_right=$((pad_total - pad_left))
+    green_line
+    printf "${ORANGE}${BOLD}%*s%s%*s${RESET}\n" "$pad_left" "" "$text" "$pad_right" ""
+    green_line
+}
+
+section() { echo -e "${ORANGE}●$1${RESET}"; }
+tree_item() { local prefix="$1"; local txt="$2"; echo -e "  ${GREEN}${prefix}${RESET}${txt}"; }
+
+# Remove containers by name or image
+remove_containers_by_name_or_image() {
+    local name="$1"
+    local image="$2"
+    local msgs=()
+    local found=0
+
+    # Remove containers by name
+    while read -r cid; do
+        [ -z "$cid" ] && continue
+        found=1
+        docker stop "$cid" >/dev/null 2>&1 || true
+        docker rm "$cid" >/dev/null 2>&1 || true
+        msgs+=("${name} container (${cid}) removed ${GREEN}✓${RESET}")
+    done < <(docker ps -a --filter "name=^/${name}$" --format '{{.ID}}')
+
+    # Remove containers by image
+    while read -r cid; do
+        [ -z "$cid" ] && continue
+        found=1
+        docker stop "$cid" >/dev/null 2>&1 || true
+        docker rm "$cid" >/dev/null 2>&1 || true
+        msgs+=("${name} container (${cid}) removed (by image) ${GREEN}✓${RESET}")
+    done < <(docker ps -a --filter "ancestor=$image" --format '{{.ID}}')
+
+    # Remove the image
+    if docker images --format '{{.Repository}}:{{.Tag}}' | grep -qw "$image"; then
+        docker rmi "$image" >/dev/null 2>&1 || true
+        msgs+=("${image} image removed ${GREEN}✓${RESET}")
+    fi
+
+    if [ $found -eq 0 ]; then
+        msgs+=("${name} container not found ${RED}✗${RESET}")
+    fi
+
+    for i in "${!msgs[@]}"; do
+        if [ "$i" -eq "$((${#msgs[@]}-1))" ]; then
+            tree_item "└── " "${msgs[$i]}"
+        else
+            tree_item "├── " "${msgs[$i]}"
+        fi
+    done
+}
+
+# Remove Dozzle containers by image
+remove_dozzle() {
+    local msgs=()
+    local found=0
+    local dozzle_images=("dozzle/dozzle:latest" "amir20/dozzle:latest")
+    for img in "${dozzle_images[@]}"; do
+        while read -r cid; do
+            [ -z "$cid" ] && continue
+            found=1
+            docker stop "$cid" >/dev/null 2>&1 || true
+            docker rm "$cid" >/dev/null 2>&1 || true
+            msgs+=("Dozzle container (${cid}) removed ${GREEN}✓${RESET}")
+        done < <(docker ps -a --filter "ancestor=$img" --format '{{.ID}}')
+
+        if docker images --format '{{.Repository}}:{{.Tag}}' | grep -qw "$img"; then
+            docker rmi "$img" >/dev/null 2>&1 || true
+            msgs+=("${img} image removed ${GREEN}✓${RESET}")
+        fi
+    done
+
+    if [ $found -eq 0 ]; then
+        msgs+=("Dozzle container not found ${RED}✗${RESET}")
+    fi
+
+    for i in "${!msgs[@]}"; do
+        tree_item "└── " "${msgs[$i]}"
+    done
+}
+
+# ==== MAIN ====
+
+center_orange_banner "Sepolia RPC Cleanup"
+
+echo -e "${ORANGE}Which components would you like to remove?${RESET}"
+echo -e "  1) reth"
+echo -e "  2) prysm"
+echo -e "  3) HAproxy"
+echo -e "  4) Dozzle"
+echo -e "  5) All"
+read -p "Enter option(s) (e.g. 1 2 4): " -a choices
+echo
+
+declare -A selected
+for choice in "${choices[@]}"; do
+    case $choice in
+        1) selected["reth"]=1 ;;
+        2) selected["prysm"]=1 ;;
+        3) selected["haproxy"]=1 ;;
+        4) selected["dozzle"]=1 ;;
+        5) selected["reth"]=1; selected["prysm"]=1; selected["haproxy"]=1; selected["dozzle"]=1 ;;
+    esac
+done
+
+section "Containers"
+if [[ ${selected["reth"]} ]]; then
+    remove_containers_by_name_or_image "reth" "ghcr.io/paradigmxyz/reth:latest"
+fi
+if [[ ${selected["prysm"]} ]]; then
+    remove_containers_by_name_or_image "prysm" "gcr.io/prysmaticlabs/prysm/beacon-chain:latest"
+fi
+if [[ ${selected["haproxy"]} ]]; then
+    remove_containers_by_name_or_image "haproxy" "haproxy:2.8"
+fi
+
+section "Images"
+if [[ ${selected["reth"]} || ${selected["prysm"]} || ${selected["haproxy"]} ]]; then
+    # Images already handled in remove_containers_by_name_or_image
+    true
+else
+    tree_item "└── " "No images to remove ${RED}✗${RESET}"
+fi
+
+section "Ethereum Directory"
+eth_msgs=()
+if [[ ${selected["reth"]} || ${selected["prysm"]} || ${selected["haproxy"]} ]]; then
+    if [ -d "Ethereum" ]; then
+        sudo rm -rf Ethereum
+        eth_msgs+=("Ethereum directory removed ${GREEN}✓${RESET}")
+    else
+        eth_msgs+=("Ethereum directory not found ${RED}✗${RESET}")
+    fi
+else
+    eth_msgs+=("Ethereum directory left untouched")
+fi
+for i in "${!eth_msgs[@]}"; do
+    tree_item "└── " "${eth_msgs[$i]}"
+done
+
+section "Dozzle"
+if [[ ${selected["dozzle"]} ]]; then
+    remove_dozzle
+else
+    tree_item "└── " "Dozzle left untouched"
+fi
+
+center_orange_banner "Cleanup Complete"
