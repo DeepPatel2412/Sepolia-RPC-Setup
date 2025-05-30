@@ -54,7 +54,7 @@ Ethereum/
 - **Prysm (Beacon):** `http://<YOUR_SERVER_IP>/prysm/`
 - **Dozzle Monitoring:** `http://<YOUR_SERVER_IP>:9999`
 ------------------------------------------
-## 📂 Add IPs to your RPC Whitelist (Run)
+## 📍 Add IPs to your Whitelist (Run)
 ```
 cd Ethereum
 echo "YOUR_IP/CIDR" >> whitelist.lst
