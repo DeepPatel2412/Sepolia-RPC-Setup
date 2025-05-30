@@ -34,7 +34,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Se
 - Starts all services in Docker containers.
 - Prints your RPC, Beacon, and monitoring URLs.
 ------------------------------------------
-- ## 📂 Directory Structure (For info only do not run this)
+## 📂 Directory Structure (For info only do not run this)
 After setup, your directory tree will look like this:
 ```
 Ethereum/
