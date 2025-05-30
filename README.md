@@ -51,7 +51,7 @@ Ethereum/
 ## 📍 Add IPs to your Whitelist (Run)
 ```
 cd Ethereum
-echo "YOUR_IP/CIDR" >> whitelist.lst
+echo "YOUR_Whitelist_IP" >> whitelist.lst
 sudo docker restart haproxy
 cd
 ```
