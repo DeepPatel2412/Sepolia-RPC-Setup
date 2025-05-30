@@ -24,7 +24,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setu
 http://your-RPC-vpsIP:9999/
 ```
 Replace your VPS ip and run open it in browser. 
-------------------------------------------
+
 ------------------------------------------
 ## 💭 What happens when you run the setup command?
 - Checks your VPS for required CPU, RAM, and disk space.
