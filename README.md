@@ -58,9 +58,10 @@ Ethereum/
 
 ------------------------------------------
 ## 📍 Add IPs to your Whitelist (Run)
+- Exacmple : 12.1203.09/32 (keep the /32 after your ip ) 
 ```
 cd Ethereum
-echo "YOUR_Whitelist_IP" >> whitelist.lst
+echo "YOUR_Whitelist_IP"/32 >> whitelist.lst
 sudo docker restart haproxy
 cd
 ```
