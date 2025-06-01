@@ -1,4 +1,4 @@
-# 🔗 Sepolia RPC Setup (By Creed)
+# 🔗 Sepolia RPC Setup (By Creed) - Undermaintance 
 
 Deploy and manage an Ethereum Sepolia RPC node on your VPS in seconds with a single command. This solution uses Dockerized **Reth**, **Prysm**, **HAProxy**, and **Dozzle** for a secure, production-ready testnet setup. Cleanup is just as easy—reset or remove everything with one command.
 
