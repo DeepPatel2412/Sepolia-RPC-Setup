@@ -1,0 +1,76 @@
+cd Ethereum && \
+docker compose stop haproxy && \
+docker compose rm -f haproxy && \
+docker rmi haproxy:2.8 || true && \
+rm -f haproxy.cfg whitelist.lst && \
+cat > docker-compose.yml <<'EOF'
+services:
+  reth:
+    image: ghcr.io/paradigmxyz/reth:latest
+    container_name: reth
+    restart: unless-stopped
+    volumes:
+      - ./Execution:/data
+      - ./jwt.hex:/data/jwt.hex
+    command:
+      - node
+      - --chain=sepolia
+      - --full
+      - --datadir=/data
+      - --http
+      - --ws
+      - --authrpc.addr=0.0.0.0
+      - --authrpc.port=8551
+      - --http.api=eth,net,web3,admin
+      - --ws.api=eth,net,web3,admin
+      - --authrpc.jwtsecret=/data/jwt.hex
+    ports:
+      - 8545:8545
+      - 8546:8546
+
+  prysm:
+    image: gcr.io/prysmaticlabs/prysm/beacon-chain:latest
+    container_name: prysm
+    restart: unless-stopped
+    depends_on:
+      - reth
+    volumes:
+      - ./Consensus:/data
+      - ./jwt.hex:/data/jwt.hex
+    command:
+      - --sepolia
+      - --datadir=/data
+      - --execution-endpoint=http://reth:8551
+      - --jwt-secret=/data/jwt.hex
+      - --rpc-host=0.0.0.0
+      - --grpc-gateway-host=0.0.0.0
+      - --blob-storage-layout=by-epoch
+      - --checkpoint-sync-url=https://checkpoint-sync.sepolia.ethpandaops.io
+      - --genesis-beacon-api-url=https://checkpoint-sync.sepolia.ethpandaops.io
+      - --accept-terms-of-use
+    ports:
+      - 3500:3500
+      - 4000:4000
+EOF
+docker compose up -d --force-recreate reth prysm && \
+sudo ufw allow 22/tcp && \
+sudo ufw allow 8545/tcp && \
+sudo ufw allow 8546/tcp && \
+sudo ufw allow 3500/tcp && \
+sudo ufw allow 4000/tcp && \
+sudo ufw --force enable && \
+sudo ufw status verbose && \
+read -p "Do you want to also whitelist specific IPs for RPC access? [y/n] " yn && \
+if [ "$yn" = "y" ]; then \
+  read -p "How many IPs? " ip_count && \
+  for ((i=1; i<=ip_count; i++)); do \
+    read -p "Enter IP #$i: " ip && \
+    sudo ufw allow from "$ip" to any port 8545 proto tcp && \
+    sudo ufw allow from "$ip" to any port 8546 proto tcp && \
+    sudo ufw allow from "$ip" to any port 3500 proto tcp && \
+    sudo ufw allow from "$ip" to any port 4000 proto tcp && \
+    echo "Whitelisted IP: $ip for ports 8545,8546,3500,4000"; \
+  done && \
+  sudo ufw reload && \
+  sudo ufw status verbose; \
+fi
