@@ -16,7 +16,7 @@ echo -e "     ETHEREUM SEPOLIA NODE INSTALLER"
 echo -e "========================================${NC}"
 echo -e "${BOLD}Recommended System Specifications:${NC}"
 echo -e "· Storage: 750GB-1TB SSD"
-echo -e "· CPU: 4+ cores"
+echo -e "· CPU: 6+ cores"
 echo -e "· RAM: 16GB+"
 echo -e "${CYAN}----------------------------------------${NC}"
 echo "Checking your system resources..."
@@ -32,7 +32,7 @@ echo -e "· Total RAM: ${TOTAL_RAM}GB"
 
 WARNING=""
 [[ ${AVAILABLE_SPACE%G} -lt 750 ]] && WARNING+="· ${RED}Low storage space detected${NC}\n"
-[[ ${CPU_CORES} -lt 4 ]] && WARNING+="· ${RED}Insufficient CPU cores detected${NC}\n"
+[[ ${CPU_CORES} -lt 6 ]] && WARNING+="· ${RED}Insufficient CPU cores detected${NC}\n"
 [[ ${TOTAL_RAM} -lt 16 ]] && WARNING+="· ${RED}Insufficient RAM detected${NC}\n"
 
 if [[ -n "$WARNING" ]]; then
