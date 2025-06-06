@@ -1,0 +1,79 @@
+clear
+
+# Function to center text in a given width (default 55)
+center() {
+  local str="$1"
+  local width="${2:-55}"
+  local len=${#str}
+  local pad=$(( (width - len) / 2 ))
+  printf "%*s%s%*s\n" $pad "" "$str" $pad ""
+}
+
+# Max label length for alignment
+max_label_len=11
+
+# Fetch Execution sync status
+EXEC_RESPONSE=$(curl -s -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"eth_syncing","params":[],"id":1}' http://localhost:8545)
+syncing=$(echo "$EXEC_RESPONSE" | grep -o '"result":[^},]*' | cut -d: -f2 | tr -d '[:space:]')
+if [[ "$syncing" == "false" ]]; then
+  syncing_status="SYNCED  ✓"
+  syncing_value="false"
+else
+  syncing_status="SYNCING ✗"
+  syncing_value="true"
+  current_block=$(echo "$EXEC_RESPONSE" | grep -o '"currentBlock":"[^"]*"' | cut -d: -f2 | tr -d '" ,')
+  highest_block=$(echo "$EXEC_RESPONSE" | grep -o '"highestBlock":"[^"]*"' | cut -d: -f2 | tr -d '" ,')
+fi
+
+# Fetch Execution block number
+BLOCK_NUM_RESPONSE=$(curl -s -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' http://localhost:8545)
+block_number_hex=$(echo "$BLOCK_NUM_RESPONSE" | grep -o '"result":"[^"]*"' | cut -d: -f2 | tr -d '" ,')
+block_number_int=$((16#${block_number_hex#0x}))
+
+# Output Execution block
+echo "───────────────────────────────────────────────────────"
+center "Execution Client - Sepolia (Port 8545)"
+echo "───────────────────────────────────────────────────────"
+echo "● Status: $syncing_status"
+printf "    %-${max_label_len}s : %s\n" "Syncing" "$syncing_value"
+if [[ "$syncing_value" == "true" ]]; then
+  printf "    %-${max_label_len}s : %s\n" "CurrentBlock" "$current_block"
+  printf "    %-${max_label_len}s : %s\n" "HighestBlock" "$highest_block"
+fi
+printf "    %-${max_label_len}s : %d\n" "Block" "$block_number_int"
+echo "───────────────────────────────────────────────────────"
+
+# Add 3 blank lines
+for i in {1..3}; do echo; done
+
+# Fetch Prysm status
+PRYSM_RESPONSE=$(curl -s http://localhost:3500/eth/v1/node/syncing 2>/dev/null)
+if [[ -z "$PRYSM_RESPONSE" ]]; then
+  PRYSM_ERROR="Consensus endpoint unreachable"
+else
+  is_syncing=$(echo "$PRYSM_RESPONSE" | grep -o '"is_syncing":[^,}]*' | cut -d: -f2 | tr -d '[:space:]')
+  is_syncing=${is_syncing:-null}
+  is_optimistic=$(echo "$PRYSM_RESPONSE" | grep -o '"is_optimistic":[^,}]*' | cut -d: -f2 | tr -d '[:space:]')
+  is_optimistic=${is_optimistic:-null}
+  el_offline=$(echo "$PRYSM_RESPONSE" | grep -o '"el_offline":[^,}]*' | cut -d: -f2 | tr -d '[:space:]')
+  el_offline=${el_offline:-null}
+  if [[ "$is_syncing" == "true" ]]; then
+    consensus_status="SYNCING ✗"
+  else
+    consensus_status="SYNCED  ✓"
+  fi
+fi
+
+# Output Prysm block
+echo "───────────────────────────────────────────────────────"
+center "Consensus Client - Beacon (Port 3500)"
+echo "───────────────────────────────────────────────────────"
+if [[ -n "$PRYSM_ERROR" ]]; then
+  echo "● Error: $PRYSM_ERROR"
+else
+  echo "● Status: $consensus_status"
+  printf "    %-${max_label_len}s : %s\n" "Syncing" "$is_syncing"
+  printf "    %-${max_label_len}s : %s\n" "Optimistic" "$is_optimistic"
+  printf "    %-${max_label_len}s : %s\n" "EL Offline" "$el_offline"
+fi
+echo "───────────────────────────────────────────────────────"
