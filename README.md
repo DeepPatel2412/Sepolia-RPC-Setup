@@ -28,8 +28,8 @@ Replace your VPS ip and run open it in browser.
 
 ------------------------------------------
 ## ✔️ Endpoints after setup
-- **Reth (RPC):** `http://<YOUR_SERVER_IP>/reth/`
-- **Prysm (Beacon):** `http://<YOUR_SERVER_IP>/prysm/`
+- **Reth (RPC):** `http://<localhost/YOUR_SERVER_IP>:8545`
+- **Prysm (Beacon):** `http://<localhost/YOUR_SERVER_IP>:3500`
 - **Dozzle Monitoring:** `http://<YOUR_SERVER_IP>:9999` (Open In Browser To Monitor Node Logs)
   
 ------------------------------------------
