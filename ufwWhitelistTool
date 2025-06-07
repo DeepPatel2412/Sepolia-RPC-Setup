@@ -1,0 +1,51 @@
+run_ufw_menu() {
+  clear
+  printf '%.0s─' {1..50}; echo
+  for ((retry=0; retry<3; retry++)); do
+    echo "Choose Action:"
+    echo "1) Add IP"
+    echo "2) Remove IP"
+    read -p "Choice (1/2): " ACTION
+    [[ $ACTION == 1 || $ACTION == 2 ]] && break
+    echo "Invalid. Try again (attempts left: $((2-retry)))"
+    printf '%.0s─' {1..50}; echo
+  done
+
+  [[ $ACTION != 1 && $ACTION != 2 ]] && { echo "Too many invalid attempts. Stopping."; printf '%.0s─' {1..50}; echo; return; }
+
+  printf '%.0s─' {1..50}; echo
+  read -p "IP address: " IP
+  read -p "Port(s) (comma/space separated): " PORTS
+
+  # Convert to array and validate ports
+  declare -a VALID_PORTS
+  for port in $(echo $PORTS | tr ', ' ' '); do
+    if [[ $port =~ ^[0-9]+(-[0-9]+)?$ ]] && [ ${port%-*} -ge 1 ] && [ ${port%-*} -le 65535 ] && ([[ ! $port =~ - ]] || [ ${port#*-} -ge 1 ] && [ ${port#*-} -le 65535 ]); then
+      VALID_PORTS+=("$port")
+    else
+      echo "Ignored invalid port: $port"
+    fi
+  done
+  printf '%.0s─' {1..50}; echo
+
+  if [ ${#VALID_PORTS[@]} -eq 0 ]; then
+    echo "No valid ports. Aborted."
+    printf '%.0s─' {1..50}; echo
+    return
+  fi
+
+  if [[ $ACTION == 1 ]]; then
+    for port in "${VALID_PORTS[@]}"; do
+      sudo ufw allow from $IP to any port $port proto tcp
+    done
+    echo "Added $IP to ports: ${VALID_PORTS[*]}"
+  else
+    for port in "${VALID_PORTS[@]}"; do
+      sudo ufw delete allow from $IP to any port $port proto tcp 2>/dev/null
+    done
+    echo "Removed $IP from ports: ${VALID_PORTS[*]}"
+  fi
+  printf '%.0s─' {1..50}; echo
+}
+
+run_ufw_menu
