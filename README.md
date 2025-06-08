@@ -22,13 +22,13 @@ bash <(curl -Ls https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setu
 
 ## 🔍 Monitor node logs (Run in any browser)
 ```
-http://your-RPC-vpsIP:9999/
+http://your-RPC-IP:9999/
 ```
 Replace your VPS ip and run open it in browser. 
 
 ------------------------------------------
-## ✔️ Endpoints after setup
-- **Reth (RPC):** `http://<localhost/YOUR_SERVER_IP>:8545`
+## ✔️ Endpoints after setup (use localhost if same vps - use vpsIP if seperate vps )
+- **Reth (RPC):** `http://<localhost/YOUR_SERVER_IP>:8545` 
 - **Prysm (Beacon):** `http://<localhost/YOUR_SERVER_IP>:3500`
 - **Dozzle Monitoring:** `http://<YOUR_SERVER_IP>:9999` (Open In Browser To Monitor Node Logs)
   
@@ -58,12 +58,9 @@ Ethereum/
 
 ------------------------------------------
 ## 📍 Add IPs to your Whitelist (Run)
-- Exacmple : 12.1203.09/32 (keep the /32 after your ip ) 
+- Exacmple : 12.1203.09 when asked to enter IP
 ```
-cd Ethereum
-echo "YOUR_Whitelist_IP"/32 >> whitelist.lst
-sudo docker restart haproxy
-cd
+bash <(curl -Ls https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/ufwWhitelistTool)
 ```
 
 ------------------------------------------
