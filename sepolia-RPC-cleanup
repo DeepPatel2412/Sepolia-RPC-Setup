@@ -60,7 +60,7 @@ remove_by_image() {
     fi
 
     if [[ "$show_dir" == "yes" ]]; then
-        if [ -d "Ehereum" ]; then
+        if [ -d "Ethereum" ]; then
             sudo rm -rf Ethereum
             tree_item "Ethereum directory removed ${GREEN}✓${RESET}"
         else
@@ -78,7 +78,7 @@ remove_dozzle() {
         if [ "${#cids[@]}" -gt 0 ]; then
             for cid in "${cids[@]}"; do
                 found_container=1
-                cname=$(docker inspect --format '{{.Name}}" "$cid" 2>/dev/null | sed 's/^\/\(.*\)/\1/')
+                cname=$(docker inspect --format '{{.Name}}' "$cid" 2>/dev/null | sed 's/^\/\(.*\)/\1/')
                 docker stop "$cid" >/dev/null 2>&1 || true
                 docker rm "$cid" >/dev/null 2>&1 || true
                 tree_item "Dozzle container (${cname:-$cid}) removed ${GREEN}✓${RESET}"
@@ -111,7 +111,7 @@ remove_firewall_rules() {
         IFS='/' read -r port _ <<< "$port_proto"
         port_list+=("$port")
     done
-    # Get all rule numbers in reverse order to avoid shifting
+    # Get all rule numbers and lines in reverse order to avoid shifting
     local -a rule_nums
     mapfile -t rule_nums < <(sudo ufw status numbered | grep -oP '\[\s*\K[0-9]+')
     for ((i=${#rule_nums[@]}-1; i>=0; i--)); do
@@ -122,14 +122,16 @@ remove_firewall_rules() {
             # Match port in rule (with or without protocol, with or without (v6))
             if [[ "$rule_line" =~ ${port}(/| |\(v6\)|$) ]]; then
                 # Extract the actual port/protocol from the rule
-                local port_proto_rule
-                if [[ "$rule_line" =~ ([0-9]+)(/[a-z]+)?( \(v6\))? ]]; then
-                    port_proto_rule="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"
-                    if [[ "${BASH_REMATCH[3]}" ]]; then
-                        port_proto_rule+=" (v6)"
-                    fi
-                else
-                    port_proto_rule="$port"
+                local port_proto_rule=""
+                # Find the "To" column (port/proto)
+                port_proto_rule=$(echo "$rule_line" | awk '{print $2}')
+                # If protocol is present, append it
+                if [[ "$rule_line" =~ ([0-9]+)/(tcp|udp) ]]; then
+                    port_proto_rule="${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"
+                fi
+                # If it's an IPv6 rule, append (v6)
+                if [[ "$rule_line" =~ "\(v6\)" ]]; then
+                    port_proto_rule="$port_proto_rule (v6)"
                 fi
                 yes | sudo ufw delete "$rule_num" >/dev/null 2>&1 && {
                     tree_item "Removed firewall rule ${port_proto_rule} ${GREEN}✓${RESET}"
