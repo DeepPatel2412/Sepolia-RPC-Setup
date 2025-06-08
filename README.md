@@ -38,7 +38,7 @@ Replace your VPS ip and run open it in browser.
 - Installs Docker & Docker Compose if missing.
 - Creates the `Ethereum` data directory.
 - Generates a JWT secret and sets up an IP whitelist for secure RPC access.
-- Downloads and configures Docker Compose for Reth, Prysm, HAProxy, and Dozzle.
+- Downloads and configures Docker Compose for Reth, Prysm, and Dozzle.
 - Configures your firewall to only allow necessary ports.
 - Starts all services in Docker containers.
 - Prints your RPC, Beacon, and monitoring URLs.
