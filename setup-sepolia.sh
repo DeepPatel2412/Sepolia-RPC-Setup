@@ -1,82 +1,101 @@
 #!/bin/bash
-set -e
 
-# ---- Colors ----
-NC='\033[0m'
-BOLD='\033[1m'
-GREEN='\033[32m'
-RED='\033[31m'
-YELLOW='\033[33m'
-CYAN='\033[36m'
-GRAY='\033[90m'
+main() {
+    clear
 
-# ---- Pre-flight Check ----
-echo -e "${CYAN}========================================"
-echo -e "     ETHEREUM SEPOLIA NODE INSTALLER"
-echo -e "========================================${NC}"
-echo -e "${BOLD}Recommended System Specifications:${NC}"
-echo -e "· Storage: 750GB-1TB SSD"
-echo -e "· CPU: 6+ cores"
-echo -e "· RAM: 16GB+"
-echo -e "${CYAN}----------------------------------------${NC}"
-echo "Checking your system resources..."
+    # ---- Colors ----
+    NC='\033[0m'
+    ORANGE='\033[38;5;208m'
+    RED='\033[31m'
+    CYAN='\033[36m'
 
-AVAILABLE_SPACE=$(df -BG --output=avail / | tail -1 | tr -d ' ')
-CPU_CORES=$(nproc)
-TOTAL_RAM=$(free -g | awk '/Mem:/ {print $2}')
+    # ---- Branded Header ----
+    echo -e "${ORANGE}============================================================${NC}"
+    echo -e "${ORANGE}      ETHEREUM SEPOLIA NODE INSTALLER${NC}"
+    echo -e "${ORANGE}                by Creed${NC}"
+    echo -e "${ORANGE}============================================================${NC}"
 
-echo -e "\n${BOLD}Your System Resources:${NC}"
-echo -e "· Available Storage: ${AVAILABLE_SPACE}B"
-echo -e "· CPU Cores: ${CPU_CORES}"
-echo -e "· Total RAM: ${TOTAL_RAM}GB"
+    # ---- Pre-flight Check ----
+    echo -e "${ORANGE}Recommended System Specifications:${NC}"
+    echo "• Storage: 750GB-1TB SSD"
+    echo "• CPU: 6+ cores"
+    echo "• RAM: 16GB+"
 
-WARNING=""
-[[ ${AVAILABLE_SPACE%G} -lt 750 ]] && WARNING+="· ${RED}Low storage space detected${NC}\n"
-[[ ${CPU_CORES} -lt 6 ]] && WARNING+="· ${RED}Insufficient CPU cores detected${NC}\n"
-[[ ${TOTAL_RAM} -lt 16 ]] && WARNING+="· ${RED}Insufficient RAM detected${NC}\n"
+    echo -e "${ORANGE}============================================================${NC}"
+    echo -e "${ORANGE}Checking your system resources...${NC}\n"
 
-if [[ -n "$WARNING" ]]; then
-    echo -e "\n${RED}Potential Issues Found:${NC}"
-    printf "$WARNING"
-    read -p "Continue installation despite warnings? [y/N]: " CONTINUE
-    CONTINUE=${CONTINUE:-N}
-    [[ "$CONTINUE" =~ [yY] ]] || exit 1
-fi
+    AVAILABLE_SPACE=$(df -BG --output=avail / | tail -1 | tr -d ' ')
+    CPU_CORES=$(nproc)
+    TOTAL_RAM=$(free -g | awk '/Mem:/ {print $2}')
 
-echo -e "${CYAN}----------------------------------------${NC}"
+    echo "Your System Resources:"
+    echo "• Available Storage: ${AVAILABLE_SPACE}B"
+    echo "• CPU Cores: ${CPU_CORES}"
+    echo "• Total RAM: ${TOTAL_RAM}GB"
 
-# ---- 0. Check Docker and Compose ----
-echo -e "${CYAN}Checking for Docker and Docker Compose...${NC}"
+    WARNING=""
+    [[ ${AVAILABLE_SPACE%G} -lt 750 ]] && WARNING+="${RED}• Low storage space detected${NC}\n"
+    [[ ${CPU_CORES} -lt 6 ]] && WARNING+="${RED}• Insufficient CPU cores detected${NC}\n"
+    [[ ${TOTAL_RAM} -lt 16 ]] && WARNING+="${RED}• Insufficient RAM detected${NC}\n"
 
-if ! command -v docker >/dev/null 2>&1; then
-  echo -e "${YELLOW}Docker not found. Installing prerequisites...${NC}"
-  curl -fsSL https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/install-prerequisites.sh | bash
-fi
+    if [[ -n "$WARNING" ]]; then
+        echo -e "${RED}Potential Issues Found:${NC}"
+        printf "$WARNING"
+        echo "What would you like to do?"
+        echo -e "${CYAN}1: Continue installation despite warnings${NC}"
+        echo -e "${CYAN}2: Abort installation${NC}"
+        echo -n "• Enter your choice (1-2): "
+        read CHOICE
+        case "$CHOICE" in
+            1)
+                # Continue
+                ;;
+            2)
+                echo "Installation aborted by user."
+                return 1
+                ;;
+            *)
+                echo "Invalid choice. Aborting installation."
+                return 1
+                ;;
+        esac
+    fi
 
-if ! sudo docker compose version >/dev/null 2>&1; then
-  echo -e "${YELLOW}Docker Compose plugin not found. Installing prerequisites...${NC}"
-  curl -fsSL https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/install-prerequisites.sh | bash
-fi
+    echo -e "${ORANGE}============================================================${NC}"
 
-echo -e "${GREEN}Docker and Compose are installed. Proceeding with Sepolia node setup...${NC}"
+    # ---- Docker & Compose Check ----
+    echo -e "${ORANGE}Checking for Docker and Docker Compose...${NC}"
+    if ! command -v docker >/dev/null 2>&1; then
+      echo "• Docker not found. Installing prerequisites..."
+      curl -fsSL https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/install-prerequisites.sh | bash
+    fi
 
-# ---- 1. Create Directory Structure ----
-echo -e "${CYAN}Creating directory structure...${NC}"
-mkdir -p Ethereum/Execution Ethereum/Consensus
-echo -e "${GREEN}Directory structure ready.${NC}"
+    if ! sudo docker compose version >/dev/null 2>&1; then
+      echo "• Docker Compose plugin not found. Installing prerequisites..."
+      curl -fsSL https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/install-prerequisites.sh | bash
+    fi
+    echo "• Docker and Compose are installed."
 
-# ---- 2. Generate JWT Secret ----
-echo -e "${CYAN}Generating JWT secret...${NC}"
-if [ ! -f Ethereum/jwt.hex ]; then
-  openssl rand -hex 32 | tr -d "\n" > Ethereum/jwt.hex
-  echo -e "${GREEN}JWT secret created.${NC}"
-else
-  echo -e "${YELLOW}JWT secret already exists, skipping.${NC}"
-fi
+    # ---- Directory Structure ----
+    echo -e "${ORANGE}Creating directory structure...${NC}"
+    mkdir -p Ethereum/Execution Ethereum/Consensus
+    echo "• Directory structure ready."
 
-# ---- 3. Write Docker Compose File ----
-echo -e "${CYAN}Writing Docker Compose file...${NC}"
-cat > Ethereum/docker-compose.yml <<'EOF'
+    # ---- JWT Secret ----
+    echo -e "${ORANGE}Generating JWT secret...${NC}"
+    if [ -d Ethereum/jwt.hex ]; then
+      rm -rf Ethereum/jwt.hex
+    fi
+    if [ ! -f Ethereum/jwt.hex ]; then
+      openssl rand -hex 32 | tr -d "\n" > Ethereum/jwt.hex
+      echo "• JWT secret created."
+    else
+      echo "• JWT secret already exists, skipping."
+    fi
+
+    # ---- Docker Compose File ----
+    echo -e "${ORANGE}Writing Docker Compose file...${NC}"
+    cat > Ethereum/docker-compose.yml <<'EOF'
 services:
   reth:
     image: ghcr.io/paradigmxyz/reth:latest
@@ -128,91 +147,113 @@ services:
       - 3500:3500
       - 4000:4000
 EOF
-echo -e "${GREEN}Docker Compose file written.${NC}"
+    echo "• Docker Compose file written."
 
-# ---- 4. Start Docker Compose Stack ----
-echo -e "${CYAN}Starting Docker Compose stack (reth & prysm)...${NC}"
-cd Ethereum
-sudo docker compose up -d --force-recreate reth prysm
-echo -e "${GREEN}Docker Compose stack started.${NC}"
+    # ---- Start Docker Stack ----
+    echo -e "${ORANGE}Starting Docker Compose stack...${NC}"
+    cd Ethereum
+    sudo docker compose up -d --force-recreate --quiet-pull reth prysm
+    echo "• Docker Compose stack started."
 
-# ---- 5. Add UFW Firewall Rules (DO NOT RESET) ----
-echo -e "${CYAN}Configuring UFW firewall rules (adding only, not resetting)...${NC}"
-if command -v ufw >/dev/null 2>&1; then
-  # Allow Ethereum/Prysm P2P networking
-  sudo ufw allow 30303/tcp
-  sudo ufw allow 30303/udp
-  sudo ufw allow 12000/udp
-  sudo ufw allow 13000/tcp
+    # ---- Dozzle Monitoring (Mandatory, no prompt) ----
+    echo -e "${ORANGE}Installing Dozzle monitoring...${NC}"
+    cd ..
+    if ! sudo docker ps -a --format '{{.Names}}' | grep -q "^dozzle$"; then
+      sudo docker run -d \
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        -p 9999:8080 \
+        --name dozzle \
+        amir20/dozzle:latest >/dev/null 2>&1
+      echo "• Dozzle installed."
+    else
+      echo "• Dozzle container already exists, skipping."
+    fi
 
-  # Allow Dozzle monitoring (optional)
-  sudo ufw allow 9999/tcp
+    # ---- Firewall Setup and Whitelist Function ----
+    ufw_whitelist_ips() {
+      echo -e "${ORANGE}============================================================${NC}"
+      echo "• Enter IP address(es) separated by comma"
+      echo "• Example: 192.168.1.15,203.0.113.42"
+      echo -n "• IP addresses: "
+      read IP_INPUT
 
-  # Prompt for and whitelist API access
-  read -p "How many IPs/CIDR ranges do you want to whitelist for node API access? " NUM_IPS
-  NUM_IPS=${NUM_IPS:-0}
-  for ((i=1; i<=NUM_IPS; i++)); do
-    while true; do
-      read -p "Enter IP/CIDR #$i (e.g., 192.168.1.0/24): " IP_CIDR_RAW
-      IP_CIDR=$(echo "$IP_CIDR_RAW" | xargs) # trim whitespace
-      if [[ "$IP_CIDR" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || \
-         [[ "$IP_CIDR" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}/([0-9]|[1-2][0-9]|3[0-2])$ ]]; then
-        sudo ufw allow from "$IP_CIDR" to any port 8545 proto tcp
-        sudo ufw allow from "$IP_CIDR" to any port 8546 proto tcp
-        sudo ufw allow from "$IP_CIDR" to any port 3500 proto tcp
-        sudo ufw allow from "$IP_CIDR" to any port 4000 proto tcp
-        echo -e "${GREEN}Whitelisted ${YELLOW}$IP_CIDR${GREEN} for node API access${NC}"
-        break
-      else
-        echo -e "${RED}Invalid IP or CIDR format. Example valid: 38.143.58.227 or 38.143.58.227/32 or 192.168.1.0/24${NC}"
-      fi
-    done
-  done
+      IFS=',' read -ra IP_LIST <<< "$IP_INPUT"
+      for IP in "${IP_LIST[@]}"; do
+        IP_CLEAN=$(echo "$IP" | xargs | cut -d'/' -f1)
+        if [[ "$IP_CLEAN" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+          sudo ufw allow from "${IP_CLEAN}/32" to any port 8545 proto tcp >/dev/null 2>&1
+          sudo ufw allow from "${IP_CLEAN}/32" to any port 3500 proto tcp >/dev/null 2>&1
+          echo "• Whitelisted ${IP_CLEAN}/32"
+        else
+          echo "• Invalid IP: ${IP_CLEAN}"
+        fi
+      done
+      sudo ufw reload >/dev/null 2>&1
+    }
 
-  sudo ufw --force enable
-  sudo ufw status numbered
-else
-  echo -e "${YELLOW}UFW not installed. Skipping firewall setup.${NC}"
-fi
+    echo -e "${ORANGE}============================================================${NC}"
+    echo -e "${ORANGE}Configuring firewall rules...${NC}"
+    if command -v ufw >/dev/null 2>&1; then
+      sudo ufw allow 30303/tcp >/dev/null 2>&1
+      sudo ufw allow 30303/udp >/dev/null 2>&1
+      sudo ufw allow 12000/udp >/dev/null 2>&1
+      sudo ufw allow 13000/tcp >/dev/null 2>&1
+      sudo ufw allow 9999/tcp >/dev/null 2>&1  # Dozzle
+      sudo ufw deny from any to any port 8551 proto tcp >/dev/null 2>&1
+      sudo ufw --force enable >/dev/null 2>&1
+      sudo ufw reload >/dev/null 2>&1
+      echo "• Base firewall rules configured."
 
-# ---- 6. Install Dozzle Monitoring ----
-echo -e "${CYAN}Installing Dozzle monitoring...${NC}"
-cd ..
-if ! sudo docker ps -a --format '{{.Names}}' | grep -q "^dozzle$"; then
-  sudo docker run -d \
-    -v /var/run/docker.sock:/var/run/docker.sock \
-    -p 9999:8080 \
-    --name dozzle \
-    amir20/dozzle:latest
-  echo -e "${GREEN}Dozzle installed.${NC}"
-else
-  echo -e "${YELLOW}Dozzle container already exists, skipping.${NC}"
-fi
+      echo -e "${ORANGE}You should whitelist IPs for RPC/API access:${NC}"
+      echo -e "${ORANGE}• Required for Aztec integration${NC}"
+      echo "What would you like to do?"
+      echo -e "${CYAN}1: Configure IP whitelisting now${NC}"
+      echo -e "${CYAN}2: Skip IP whitelisting${NC}"
+      echo -n "• Enter your choice (1-2): "
+      read CHOICE
+      case "$CHOICE" in
+        1)
+          ufw_whitelist_ips
+          ;;
+        2)
+          echo "• Skipping IP whitelisting."
+          ;;
+        *)
+          echo "• Invalid choice. Skipping IP whitelisting."
+          ;;
+      esac
+    else
+      echo "• UFW not installed. Skipping firewall setup."
+    fi
 
-# ---- Get Server IPs ----
-LOCAL_IP="127.0.0.1"
-SERVER_IP=$(hostname -I | awk '{print $1}')
-PUBLIC_IP=$(curl -4 -s ifconfig.me || echo $SERVER_IP)
-REMOTE_IP=$PUBLIC_IP
+    # ---- Get Server IPs ----
+    LOCAL_IP="127.0.0.1"
+    SERVER_IP=$(hostname -I | awk '{print $1}')
+    PUBLIC_IP=$(curl -4 -s ifconfig.me || echo $SERVER_IP)
+    REMOTE_IP=$PUBLIC_IP
 
-# ---- Final Output ----
-echo -e "${CYAN}========================================"
-echo -e "         ETHEREUM SEPOLIA NODE STATUS"
-echo -e "========================================${NC}"
+    # ---- Node Status ----
+    echo -e "${ORANGE}============================================================${NC}"
+    echo -e "${ORANGE}         ETHEREUM SEPOLIA NODE STATUS${NC}"
+    echo -e "${ORANGE}============================================================${NC}"
+    echo -e "${ORANGE}Local (on this VPS)${NC}"
+    echo "• Sepolia RPC    : ✔ http://localhost:8545/"
+    echo "• Beacon RPC     : ✔ http://localhost:3500/"
+    echo -e "\n${ORANGE}Remote (from another machine)${NC}"
+    echo "• Sepolia RPC    : ✔ http://${REMOTE_IP}:8545/"
+    echo "• Beacon RPC     : ✔ http://${REMOTE_IP}:3500/"
+    echo -e "\n${ORANGE}Monitoring${NC}"
+    echo "• Dozzle         : ✔ http://${REMOTE_IP}:9999/"
+    echo -e "${ORANGE}============================================================${NC}"
 
-echo -e "${BOLD}Local (on this VPS)${NC}"
-echo -e "· Sepolia RPC    : ${GREEN}✔${NC} ${YELLOW}http://127.0.0.1:8545/${NC}"
-echo -e "· Beacon RPC     : ${GREEN}✔${NC} ${YELLOW}http://127.0.0.1:3500/${NC}"
+    # ---- Branded Footer ----
+    echo -e "${ORANGE}============================================================${NC}"
+    echo -e "${ORANGE}         SETUP COMPLETE - CREED'S TOOLS${NC}"
+    echo -e "${ORANGE}------------------------------------------------------------${NC}"
+    echo "• Need help? Reach out:"
+printf "• %-9s : @web3.creed\n" "Discord"
+printf "• %-9s : @web3_creed\n" "Twitter"
+    echo -e "${ORANGE}============================================================${NC}"
+}
 
-echo -e "\n${BOLD}Remote (from another machine)${NC}"
-echo -e "· Sepolia RPC    : ${GREEN}✔${NC} ${YELLOW}http://${REMOTE_IP}:8545/${NC}"
-echo -e "· Beacon RPC     : ${GREEN}✔${NC} ${YELLOW}http://${REMOTE_IP}:3500/${NC}"
-
-echo -e "\n${BOLD}Monitoring${NC}"
-echo -e "· Dozzle         : ${GREEN}✔${NC} ${YELLOW}http://${REMOTE_IP}:9999/${NC}"
-
-echo -e "${BOLD}Firewall:${NC} allows SSH, Dozzle, node P2P, and whitelisted API ports only"
-echo -e "${CYAN}========================================${NC}"
-
-echo ""
-echo -e "${GREEN}Setup complete. Enjoy your Sepolia node!${NC}"
+main
