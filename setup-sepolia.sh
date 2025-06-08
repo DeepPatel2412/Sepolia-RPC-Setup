@@ -1,259 +1,218 @@
 #!/bin/bash
+set -e
 
-main() {
-    clear
+# Colors
+ORANGE="\e[38;5;214m"
+GREEN="\e[32m"
+RED="\e[31m"
+RESET="\e[0m"
+BOLD="\e[1m"
+YELLOW="\e[33m"
 
-    # ---- Colors ----
-    NC='\033[0m'
-    ORANGE='\033[38;5;208m'
-    RED='\033[31m'
-    CYAN='\033[36m'
-
-    # ---- Branded Header ----
-    echo -e "${ORANGE}============================================================${NC}"
-    echo -e "${ORANGE}      ETHEREUM SEPOLIA NODE INSTALLER${NC}"
-    echo -e "${ORANGE}                by Creed${NC}"
-    echo -e "${ORANGE}============================================================${NC}"
-
-    # ---- Pre-flight Check ----
-    echo -e "${ORANGE}Recommended System Specifications:${NC}"
-    echo "• Storage: 750GB-1TB SSD"
-    echo "• CPU: 6+ cores"
-    echo "• RAM: 16GB+"
-
-    echo -e "${ORANGE}============================================================${NC}"
-    echo -e "${ORANGE}Checking your system resources...${NC}\n"
-
-    AVAILABLE_SPACE=$(df -BG --output=avail / | tail -1 | tr -d ' ')
-    CPU_CORES=$(nproc)
-    TOTAL_RAM=$(free -g | awk '/Mem:/ {print $2}')
-
-    echo "Your System Resources:"
-    echo "• Available Storage: ${AVAILABLE_SPACE}B"
-    echo "• CPU Cores: ${CPU_CORES}"
-    echo "• Total RAM: ${TOTAL_RAM}GB"
-
-    WARNING=""
-    [[ ${AVAILABLE_SPACE%G} -lt 750 ]] && WARNING+="${RED}• Low storage space detected${NC}\n"
-    [[ ${CPU_CORES} -lt 6 ]] && WARNING+="${RED}• Insufficient CPU cores detected${NC}\n"
-    [[ ${TOTAL_RAM} -lt 16 ]] && WARNING+="${RED}• Insufficient RAM detected${NC}\n"
-
-    if [[ -n "$WARNING" ]]; then
-        echo -e "${RED}Potential Issues Found:${NC}"
-        printf "$WARNING"
-        echo "What would you like to do?"
-        echo -e "${CYAN}1: Continue installation despite warnings${NC}"
-        echo -e "${CYAN}2: Abort installation${NC}"
-        echo -n "• Enter your choice (1-2): "
-        read CHOICE
-        case "$CHOICE" in
-            1)
-                # Continue
-                ;;
-            2)
-                echo "Installation aborted by user."
-                return 1
-                ;;
-            *)
-                echo "Invalid choice. Aborting installation."
-                return 1
-                ;;
-        esac
-    fi
-
-    echo -e "${ORANGE}============================================================${NC}"
-
-    # ---- Docker & Compose Check ----
-    echo -e "${ORANGE}Checking for Docker and Docker Compose...${NC}"
-    if ! command -v docker >/dev/null 2>&1; then
-      echo "• Docker not found. Installing prerequisites..."
-      curl -fsSL https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/install-prerequisites.sh | bash
-    fi
-
-    if ! sudo docker compose version >/dev/null 2>&1; then
-      echo "• Docker Compose plugin not found. Installing prerequisites..."
-      curl -fsSL https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/install-prerequisites.sh | bash
-    fi
-    echo "• Docker and Compose are installed."
-
-    # ---- Directory Structure ----
-    echo -e "${ORANGE}Creating directory structure...${NC}"
-    mkdir -p Ethereum/Execution Ethereum/Consensus
-    echo "• Directory structure ready."
-
-    # ---- JWT Secret ----
-    echo -e "${ORANGE}Generating JWT secret...${NC}"
-    if [ -d Ethereum/jwt.hex ]; then
-      rm -rf Ethereum/jwt.hex
-    fi
-    if [ ! -f Ethereum/jwt.hex ]; then
-      openssl rand -hex 32 | tr -d "\n" > Ethereum/jwt.hex
-      echo "• JWT secret created."
-    else
-      echo "• JWT secret already exists, skipping."
-    fi
-
-    # ---- Docker Compose File ----
-    echo -e "${ORANGE}Writing Docker Compose file...${NC}"
-    cat > Ethereum/docker-compose.yml <<'EOF'
-services:
-  reth:
-    image: ghcr.io/paradigmxyz/reth:latest
-    container_name: reth
-    restart: unless-stopped
-    volumes:
-      - ./Execution:/data
-      - ./jwt.hex:/data/jwt.hex
-    command:
-      - node
-      - --chain=sepolia
-      - --full
-      - --datadir=/data
-      - --http
-      - --http.addr=0.0.0.0
-      - --http.api=eth,net,web3,admin
-      - --http.corsdomain=*
-      - --ws
-      - --ws.addr=0.0.0.0
-      - --ws.api=eth,net,web3,admin
-      - --authrpc.addr=0.0.0.0
-      - --authrpc.port=8551
-      - --authrpc.jwtsecret=/data/jwt.hex
-    ports:
-      - 8545:8545
-      - 8546:8546
-
-  prysm:
-    image: gcr.io/prysmaticlabs/prysm/beacon-chain:latest
-    container_name: prysm
-    restart: unless-stopped
-    depends_on:
-      - reth
-    volumes:
-      - ./Consensus:/data
-      - ./jwt.hex:/data/jwt.hex
-    command:
-      - --sepolia
-      - --datadir=/data
-      - --execution-endpoint=http://reth:8551
-      - --jwt-secret=/data/jwt.hex
-      - --rpc-host=0.0.0.0
-      - --grpc-gateway-host=0.0.0.0
-      - --blob-storage-layout=by-epoch
-      - --checkpoint-sync-url=https://checkpoint-sync.sepolia.ethpandaops.io
-      - --genesis-beacon-api-url=https://checkpoint-sync.sepolia.ethpandaops.io
-      - --accept-terms-of-use
-    ports:
-      - 3500:3500
-      - 4000:4000
-EOF
-    echo "• Docker Compose file written."
-
-    # ---- Start Docker Stack ----
-    echo -e "${ORANGE}Starting Docker Compose stack...${NC}"
-    cd Ethereum
-    sudo docker compose up -d --force-recreate --quiet-pull reth prysm
-    echo "• Docker Compose stack started."
-
-    # ---- Dozzle Monitoring (Mandatory, no prompt) ----
-    echo -e "${ORANGE}Installing Dozzle monitoring...${NC}"
-    cd ..
-    if ! sudo docker ps -a --format '{{.Names}}' | grep -q "^dozzle$"; then
-      sudo docker run -d \
-        -v /var/run/docker.sock:/var/run/docker.sock \
-        -p 9999:8080 \
-        --name dozzle \
-        amir20/dozzle:latest >/dev/null 2>&1
-      echo "• Dozzle installed."
-    else
-      echo "• Dozzle container already exists, skipping."
-    fi
-
-    # ---- Firewall Setup and Whitelist Function ----
-    ufw_whitelist_ips() {
-      echo -e "${ORANGE}============================================================${NC}"
-      echo "• Enter IP address(es) separated by comma"
-      echo "• Example: 192.168.1.15,203.0.113.42"
-      echo -n "• IP addresses: "
-      read IP_INPUT
-
-      IFS=',' read -ra IP_LIST <<< "$IP_INPUT"
-      for IP in "${IP_LIST[@]}"; do
-        IP_CLEAN=$(echo "$IP" | xargs | cut -d'/' -f1)
-        if [[ "$IP_CLEAN" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
-          sudo ufw allow from "${IP_CLEAN}/32" to any port 8545 proto tcp >/dev/null 2>&1
-          sudo ufw allow from "${IP_CLEAN}/32" to any port 3500 proto tcp >/dev/null 2>&1
-          echo "• Whitelisted ${IP_CLEAN}/32"
-        else
-          echo "• Invalid IP: ${IP_CLEAN}"
-        fi
-      done
-      sudo ufw reload >/dev/null 2>&1
-    }
-
-    echo -e "${ORANGE}============================================================${NC}"
-    echo -e "${ORANGE}Configuring firewall rules...${NC}"
-    if command -v ufw >/dev/null 2>&1; then
-      sudo ufw allow 30303/tcp >/dev/null 2>&1
-      sudo ufw allow 30303/udp >/dev/null 2>&1
-      sudo ufw allow 12000/udp >/dev/null 2>&1
-      sudo ufw allow 13000/tcp >/dev/null 2>&1
-      sudo ufw allow 9999/tcp >/dev/null 2>&1  # Dozzle
-      sudo ufw deny from any to any port 8551 proto tcp >/dev/null 2>&1
-      sudo ufw --force enable >/dev/null 2>&1
-      sudo ufw reload >/dev/null 2>&1
-      echo "• Base firewall rules configured."
-
-      echo -e "${ORANGE}You should whitelist IPs for RPC/API access:${NC}"
-      echo -e "${ORANGE}• Required for Aztec integration${NC}"
-      echo "What would you like to do?"
-      echo -e "${CYAN}1: Configure IP whitelisting now${NC}"
-      echo -e "${CYAN}2: Skip IP whitelisting${NC}"
-      echo -n "• Enter your choice (1-2): "
-      read CHOICE
-      case "$CHOICE" in
-        1)
-          ufw_whitelist_ips
-          ;;
-        2)
-          echo "• Skipping IP whitelisting."
-          ;;
-        *)
-          echo "• Invalid choice. Skipping IP whitelisting."
-          ;;
-      esac
-    else
-      echo "• UFW not installed. Skipping firewall setup."
-    fi
-
-    # ---- Get Server IPs ----
-    LOCAL_IP="127.0.0.1"
-    SERVER_IP=$(hostname -I | awk '{print $1}')
-    PUBLIC_IP=$(curl -4 -s ifconfig.me || echo $SERVER_IP)
-    REMOTE_IP=$PUBLIC_IP
-
-    # ---- Node Status ----
-    echo -e "${ORANGE}============================================================${NC}"
-    echo -e "${ORANGE}         ETHEREUM SEPOLIA NODE STATUS${NC}"
-    echo -e "${ORANGE}============================================================${NC}"
-    echo -e "${ORANGE}Local (on this VPS)${NC}"
-    echo "• Sepolia RPC    : ✔ http://localhost:8545/"
-    echo "• Beacon RPC     : ✔ http://localhost:3500/"
-    echo -e "\n${ORANGE}Remote (from another machine)${NC}"
-    echo "• Sepolia RPC    : ✔ http://${REMOTE_IP}:8545/"
-    echo "• Beacon RPC     : ✔ http://${REMOTE_IP}:3500/"
-    echo -e "\n${ORANGE}Monitoring${NC}"
-    echo "• Dozzle         : ✔ http://${REMOTE_IP}:9999/"
-    echo -e "${ORANGE}============================================================${NC}"
-
-    # ---- Branded Footer ----
-    echo -e "${ORANGE}============================================================${NC}"
-    echo -e "${ORANGE}         SETUP COMPLETE - CREED'S TOOLS${NC}"
-    echo -e "${ORANGE}------------------------------------------------------------${NC}"
-    echo "• Need help? Reach out:"
-printf "• %-9s : @web3.creed\n" "Discord"
-printf "• %-9s : @web3_creed\n" "Twitter"
-    echo -e "${ORANGE}============================================================${NC}"
+green_line() {
+    local width=40
+    local line
+    line=$(printf "%${width}s" | tr ' ' '=')
+    echo -e "${GREEN}${line}${RESET}"
 }
 
-main
+center_orange_banner() {
+    local text=" $1 "
+    local width=40
+    local text_len=${#text}
+    local pad_total=$((width - text_len))
+    local pad_left=$((pad_total / 2))
+    local pad_right=$((pad_total - pad_left))
+    green_line
+    printf "${ORANGE}${BOLD}%*s%s%*s${RESET}\n" "$pad_left" "" "$text" "$pad_right" ""
+    green_line
+}
+
+section() { echo -e "${ORANGE}● $1${RESET}"; }
+tree_item() { local txt="$1"; echo -e "  └── $txt"; }
+
+remove_by_image() {
+    local display="$1"
+    local image="$2"
+    local show_dir="$3"
+    local found_container=0
+    local found_image=0
+
+    mapfile -t cids < <(docker ps -a --filter "ancestor=$image" --format '{{.ID}}')
+    if [ "${#cids[@]}" -gt 0 ]; then
+        for cid in "${cids[@]}"; do
+            found_container=1
+            cname=$(docker inspect --format '{{.Name}}' "$cid" 2>/dev/null | sed 's/^\/\(.*\)/\1/')
+            docker stop "$cid" >/dev/null 2>&1 || true
+            docker rm "$cid" >/dev/null 2>&1 || true
+            tree_item "${display} container (${cname:-$cid}) removed ${GREEN}✓${RESET}"
+        done
+    else
+        tree_item "No containers to remove ${RED}✗${RESET}"
+    fi
+
+    if docker images --format '{{.Repository}}:{{.Tag}}' | grep -qw "$image"; then
+        found_image=1
+        docker rmi "$image" >/dev/null 2>&1 || true
+        tree_item "${image} image removed ${GREEN}✓${RESET}"
+    else
+        tree_item "No images to remove ${RED}✗${RESET}"
+    fi
+
+    if [[ "$show_dir" == "yes" ]]; then
+        if [ -d "Ethereum" ]; then
+            sudo rm -rf Ethereum
+            tree_item "Ethereum directory removed ${GREEN}✓${RESET}"
+        else
+            tree_item "No directory to remove ${RED}✗${RESET}"
+        fi
+    fi
+}
+
+remove_dozzle() {
+    local found_container=0
+    local found_image=0
+    local dozzle_images=("dozzle/dozzle:latest" "amir20/dozzle:latest")
+    for img in "${dozzle_images[@]}"; do
+        mapfile -t cids < <(docker ps -a --filter "ancestor=$img" --format '{{.ID}}')
+        if [ "${#cids[@]}" -gt 0 ]; then
+            for cid in "${cids[@]}"; do
+                found_container=1
+                cname=$(docker inspect --format '{{.Name}}' "$cid" 2>/dev/null | sed 's/^\/\(.*\)/\1/')
+                docker stop "$cid" >/dev/null 2>&1 || true
+                docker rm "$cid" >/dev/null 2>&1 || true
+                tree_item "Dozzle container (${cname:-$cid}) removed ${GREEN}✓${RESET}"
+            done
+        fi
+        if docker images --format '{{.Repository}}:{{.Tag}}' | grep -qw "$img"; then
+            found_image=1
+            docker rmi "$img" >/dev/null 2>&1 || true
+            tree_item "$img image removed ${GREEN}✓${RESET}"
+        fi
+    done
+    if [ $found_container -eq 0 ]; then
+        tree_item "No containers to remove ${RED}✗${RESET}"
+    fi
+    if [ $found_image -eq 0 ]; then
+        tree_item "No images to remove ${RED}✗${RESET}"
+    fi
+}
+
+remove_firewall_rules() {
+    local ports="$1"
+    local removed_any=0
+    if [[ -z "$ports" ]]; then
+        tree_item "No firewall rules to remove (none specified) ${RED}✗${RESET}"
+        return
+    fi
+    # Build a list of ports to match (strip protocols for matching)
+    local -a port_list=()
+    for port_proto in $ports; do
+        IFS='/' read -r port _ <<< "$port_proto"
+        port_list+=("$port")
+    done
+    # Get all rule numbers and lines in reverse order to avoid shifting
+    local -a rule_nums
+    mapfile -t rule_nums < <(sudo ufw status numbered | grep -oP '\[\s*\K[0-9]+')
+    for ((i=${#rule_nums[@]}-1; i>=0; i--)); do
+        local rule_num="${rule_nums[$i]}"
+        local rule_line
+        rule_line=$(sudo ufw status numbered | grep -E "^\[ *${rule_num}\]" | tr -s ' ')
+        for port in "${port_list[@]}"; do
+            # Match port in rule (with or without protocol, with or without (v6))
+            if [[ "$rule_line" =~ ${port}(/| |\(v6\)|$) ]]; then
+                # Extract the actual port/protocol from the rule
+                local port_proto_rule=""
+                # Find the "To" column (port/proto)
+                port_proto_rule=$(echo "$rule_line" | awk '{print $2}')
+                # If protocol is present, append it
+                if [[ "$rule_line" =~ ([0-9]+)/(tcp|udp) ]]; then
+                    port_proto_rule="${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"
+                fi
+                # If it's an IPv6 rule, append (v6)
+                if [[ "$rule_line" =~ "\(v6\)" ]]; then
+                    port_proto_rule="$port_proto_rule (v6)"
+                fi
+                yes | sudo ufw delete "$rule_num" >/dev/null 2>&1 && {
+                    tree_item "Removed firewall rule ${port_proto_rule} ${GREEN}✓${RESET}"
+                    removed_any=1
+                }
+                break  # Only remove each rule once
+            fi
+        done
+    done
+    if [[ $removed_any -eq 0 && -n "$ports" ]]; then
+        tree_item "No matching firewall rules to remove ${RED}✗${RESET}"
+    fi
+}
+
+# ==== MAIN ====
+
+center_orange_banner "Sepolia RPC Cleanup"
+
+echo -e "${ORANGE}Which components would you like to remove?${RESET}"
+echo -e "  1) reth"
+echo -e "  2) prysm"
+echo -e "  3) HAproxy"
+echo -e "  4) Dozzle"
+echo -e "  5) All"
+echo -e "${YELLOW}Enter No(s) (or anything else to exit):${RESET} \c"
+read choices_raw
+IFS=', ' read -r -a choices <<< "$choices_raw"
+echo
+
+# Check for at least one valid option
+valid=0
+for choice in "${choices[@]}"; do
+    case $choice in
+        1|2|3|4|5) valid=1 ;;
+    esac
+done
+
+if [[ $valid -eq 0 ]]; then
+    echo -e "${RED}No valid option selected. Exiting.${RESET}"
+    center_orange_banner "Cleanup Complete"
+    exit 0
+fi
+
+declare -A selected
+for choice in "${choices[@]}"; do
+    case $choice in
+        1) selected["reth"]=1 ;;
+        2) selected["prysm"]=1 ;;
+        3) selected["haproxy"]=1 ;;
+        4) selected["dozzle"]=1 ;;
+        5) selected["reth"]=1; selected["prysm"]=1; selected["haproxy"]=1; selected["dozzle"]=1 ;;
+    esac
+done
+
+# Port mapping for each component
+declare -A component_ports=(
+    ["reth"]="30303/tcp 30303/udp 8545/tcp 8551/tcp 9001/tcp"
+    ["prysm"]="13000/tcp 3500/tcp 4000/tcp 12000/udp"
+    ["haproxy"]=""
+    ["dozzle"]="9999/tcp"
+)
+
+if [[ ${selected["reth"]} ]]; then
+    section "Reth"
+    remove_by_image "Reth" "ghcr.io/paradigmxyz/reth:latest" "yes"
+    remove_firewall_rules "${component_ports[reth]}"
+fi
+if [[ ${selected["prysm"]} ]]; then
+    section "Prysm"
+    remove_by_image "Prysm" "gcr.io/prysmaticlabs/prysm/beacon-chain:latest" "no"
+    remove_firewall_rules "${component_ports[prysm]}"
+fi
+if [[ ${selected["haproxy"]} ]]; then
+    section "HAproxy"
+    remove_by_image "HAproxy" "haproxy:2.8" "no"
+    remove_firewall_rules "${component_ports[haproxy]}"
+fi
+if [[ ${selected["dozzle"]} ]]; then
+    section "Dozzle"
+    remove_dozzle
+    remove_firewall_rules "${component_ports[dozzle]}"
+fi
+
+center_orange_banner "Cleanup Complete"
