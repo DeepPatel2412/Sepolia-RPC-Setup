@@ -7,6 +7,7 @@ GREEN="\e[32m"
 RED="\e[31m"
 RESET="\e[0m"
 BOLD="\e[1m"
+YELLOW="\e[33m"
 
 green_line() {
     local width=40
@@ -27,7 +28,7 @@ center_orange_banner() {
     green_line
 }
 
-section() { echo -e "${ORANGE}●$1${RESET}"; }
+section() { echo -e "${ORANGE}● $1${RESET}"; }
 tree_item() { local txt="$1"; echo -e "  └── $txt"; }
 
 remove_by_image() {
@@ -97,6 +98,42 @@ remove_dozzle() {
     fi
 }
 
+remove_firewall_rules() {
+    local ports="$1"
+    local removed_any=0
+    if [[ -z "$ports" ]]; then
+        tree_item "No firewall rules to remove (none specified) ${RED}✗${RESET}"
+        return
+    fi
+    # Build a list of ports to match (strip protocols)
+    local -a port_list=()
+    for port_proto in $ports; do
+        IFS='/' read -r port _ <<< "$port_proto"
+        port_list+=("$port")
+    done
+    # Iterate over all numbered rules in reverse (to avoid rule number shift)
+    local -a rule_nums
+    mapfile -t rule_nums < <(sudo ufw status numbered | grep -oP '\[ *\K[0-9]+')
+    for ((i=${#rule_nums[@]}-1; i>=0; i--)); do
+        local rule_num="${rule_nums[$i]}"
+        local rule_line
+        rule_line=$(sudo ufw status numbered | grep -E "^\\[ *${rule_num}\\]" | tr -s ' ')
+        for port in "${port_list[@]}"; do
+            # Match port in rule (with or without protocol, with or without (v6))
+            if [[ "$rule_line" =~ ${port}(/| |\\(v6\\)|$) ]]; then
+                yes | sudo ufw delete "$rule_num" >/dev/null 2>&1 && {
+                    tree_item "Removed firewall rule ${port} ${GREEN}✓${RESET}"
+                    removed_any=1
+                }
+                break  # Move to next rule after deleting
+            fi
+        done
+    done
+    if [[ $removed_any -eq 0 && -n "$ports" ]]; then
+        tree_item "No matching firewall rules to remove ${RED}✗${RESET}"
+    fi
+}
+
 # ==== MAIN ====
 
 center_orange_banner "Sepolia RPC Cleanup"
@@ -137,21 +174,33 @@ for choice in "${choices[@]}"; do
     esac
 done
 
+# Port mapping for each component
+declare -A component_ports=(
+    ["reth"]="30303/tcp 30303/udp 8545/tcp 8551/tcp 9001/tcp"
+    ["prysm"]="13000/tcp 3500/tcp 4000/tcp 12000/udp"
+    ["haproxy"]=""
+    ["dozzle"]="9999/tcp"
+)
+
 if [[ ${selected["reth"]} ]]; then
     section "Reth"
     remove_by_image "Reth" "ghcr.io/paradigmxyz/reth:latest" "yes"
+    remove_firewall_rules "${component_ports[reth]}"
 fi
 if [[ ${selected["prysm"]} ]]; then
     section "Prysm"
     remove_by_image "Prysm" "gcr.io/prysmaticlabs/prysm/beacon-chain:latest" "yes"
+    remove_firewall_rules "${component_ports[prysm]}"
 fi
 if [[ ${selected["haproxy"]} ]]; then
     section "HAproxy"
     remove_by_image "HAproxy" "haproxy:2.8" "yes"
+    remove_firewall_rules "${component_ports[haproxy]}"
 fi
 if [[ ${selected["dozzle"]} ]]; then
     section "Dozzle"
     remove_dozzle
+    remove_firewall_rules "${component_ports[dozzle]}"
 fi
 
 center_orange_banner "Cleanup Complete"
