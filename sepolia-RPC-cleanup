@@ -60,7 +60,7 @@ remove_by_image() {
     fi
 
     if [[ "$show_dir" == "yes" ]]; then
-        if [ -d "Ethereum" ]; then
+        if [ -d "Ehereum" ]; then
             sudo rm -rf Ethereum
             tree_item "Ethereum directory removed ${GREEN}✓${RESET}"
         else
@@ -78,7 +78,7 @@ remove_dozzle() {
         if [ "${#cids[@]}" -gt 0 ]; then
             for cid in "${cids[@]}"; do
                 found_container=1
-                cname=$(docker inspect --format '{{.Name}}' "$cid" 2>/dev/null | sed 's/^\/\(.*\)/\1/')
+                cname=$(docker inspect --format '{{.Name}}" "$cid" 2>/dev/null | sed 's/^\/\(.*\)/\1/')
                 docker stop "$cid" >/dev/null 2>&1 || true
                 docker rm "$cid" >/dev/null 2>&1 || true
                 tree_item "Dozzle container (${cname:-$cid}) removed ${GREEN}✓${RESET}"
@@ -105,7 +105,7 @@ remove_firewall_rules() {
         tree_item "No firewall rules to remove (none specified) ${RED}✗${RESET}"
         return
     fi
-    # Build a list of ports to match (strip protocols)
+    # Build a list of ports to match (strip protocols for matching)
     local -a port_list=()
     for port_proto in $ports; do
         IFS='/' read -r port _ <<< "$port_proto"
@@ -121,8 +121,18 @@ remove_firewall_rules() {
         for port in "${port_list[@]}"; do
             # Match port in rule (with or without protocol, with or without (v6))
             if [[ "$rule_line" =~ ${port}(/| |\(v6\)|$) ]]; then
+                # Extract the actual port/protocol from the rule
+                local port_proto_rule
+                if [[ "$rule_line" =~ ([0-9]+)(/[a-z]+)?( \(v6\))? ]]; then
+                    port_proto_rule="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"
+                    if [[ "${BASH_REMATCH[3]}" ]]; then
+                        port_proto_rule+=" (v6)"
+                    fi
+                else
+                    port_proto_rule="$port"
+                fi
                 yes | sudo ufw delete "$rule_num" >/dev/null 2>&1 && {
-                    tree_item "Removed firewall rule ${port} ${GREEN}✓${RESET}"
+                    tree_item "Removed firewall rule ${port_proto_rule} ${GREEN}✓${RESET}"
                     removed_any=1
                 }
                 break  # Only remove each rule once
