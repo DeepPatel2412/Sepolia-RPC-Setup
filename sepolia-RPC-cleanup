@@ -111,21 +111,21 @@ remove_firewall_rules() {
         IFS='/' read -r port _ <<< "$port_proto"
         port_list+=("$port")
     done
-    # Iterate over all numbered rules in reverse (to avoid rule number shift)
+    # Get all rule numbers in reverse order to avoid shifting
     local -a rule_nums
-    mapfile -t rule_nums < <(sudo ufw status numbered | grep -oP '\[ *\K[0-9]+')
+    mapfile -t rule_nums < <(sudo ufw status numbered | grep -oP '\[\s*\K[0-9]+')
     for ((i=${#rule_nums[@]}-1; i>=0; i--)); do
         local rule_num="${rule_nums[$i]}"
         local rule_line
-        rule_line=$(sudo ufw status numbered | grep -E "^\\[ *${rule_num}\\]" | tr -s ' ')
+        rule_line=$(sudo ufw status numbered | grep -E "^\[ *${rule_num}\]" | tr -s ' ')
         for port in "${port_list[@]}"; do
             # Match port in rule (with or without protocol, with or without (v6))
-            if [[ "$rule_line" =~ ${port}(/| |\\(v6\\)|$) ]]; then
+            if [[ "$rule_line" =~ ${port}(/| |\(v6\)|$) ]]; then
                 yes | sudo ufw delete "$rule_num" >/dev/null 2>&1 && {
                     tree_item "Removed firewall rule ${port} ${GREEN}✓${RESET}"
                     removed_any=1
                 }
-                break  # Move to next rule after deleting
+                break  # Only remove each rule once
             fi
         done
     done
@@ -189,12 +189,12 @@ if [[ ${selected["reth"]} ]]; then
 fi
 if [[ ${selected["prysm"]} ]]; then
     section "Prysm"
-    remove_by_image "Prysm" "gcr.io/prysmaticlabs/prysm/beacon-chain:latest" "yes"
+    remove_by_image "Prysm" "gcr.io/prysmaticlabs/prysm/beacon-chain:latest" "no"
     remove_firewall_rules "${component_ports[prysm]}"
 fi
 if [[ ${selected["haproxy"]} ]]; then
     section "HAproxy"
-    remove_by_image "HAproxy" "haproxy:2.8" "yes"
+    remove_by_image "HAproxy" "haproxy:2.8" "no"
     remove_firewall_rules "${component_ports[haproxy]}"
 fi
 if [[ ${selected["dozzle"]} ]]; then
