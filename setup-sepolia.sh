@@ -114,10 +114,18 @@ main() {
 
     if command -v pv >/dev/null 2>&1; then
         echo -e "${CYAN}Using 'pv' for progress bar...${NC}"
-        curl -s -L "$SNAPSHOT_URL" | pv -s $SNAPSHOT_SIZE_BYTES | tar -I zstd -xvf - --strip-components=1
+        if ! curl -s -L "$SNAPSHOT_URL" | pv -s $SNAPSHOT_SIZE_BYTES | tar -I zstd -xvf - --strip-components=1; then
+            echo -e "${RED}ERROR: Snapshot extraction failed. Please check your network and try again.${NC}"
+            cd ../..
+            exit 1
+        fi
     elif curl --version | grep -q "progress-meter"; then
         echo -e "${CYAN}Using curl with progress meter...${NC}"
-        curl -L --progress-bar "$SNAPSHOT_URL" | tar -I zstd -xvf - --strip-components=1
+        if ! curl -L --progress-bar "$SNAPSHOT_URL" | tar -I zstd -xvf - --strip-components=1; then
+            echo -e "${RED}ERROR: Snapshot extraction failed. Please check your network and try again.${NC}"
+            cd ../..
+            exit 1
+        fi
     else
         echo -e "${CYAN}No progress bar available. Please be patient.${NC}"
         echo -e "${CYAN}Estimated total size: ${SNAPSHOT_SIZE_GB} GB${NC}"
@@ -131,13 +139,17 @@ main() {
                 if [[ $ELAPSED -gt 0 && $PERCENT != "0" ]]; then
                     ESTIMATED_TOTAL=$(( ELAPSED * 100 / $(echo "$PERCENT" | awk '{print int($1)}') ))
                     REMAINING=$(( ESTIMATED_TOTAL - ELAPSED ))
-                    echo -e "${CYAN}Progress: ${PERCENT}% (${CURRENT64}%? Let's fix that typo. Here's the corrected line in the script:"
                     echo -e "${CYAN}Progress: ${PERCENT}% (${CURRENT_SIZE} bytes) | Time left: $(date -u -d @$REMAINING +'%H:%M:%S')${NC}"
                 fi
             done
         ) &
         PID=$!
-        curl -s -L "$SNAPSHOT_URL" | tar -I zstd -xvf - --strip-components=1
+        if ! curl -s -L "$SNAPSHOT_URL" | tar -I zstd -xvf - --strip-components=1; then
+            echo -e "${RED}ERROR: Snapshot extraction failed. Please check your network and try again.${NC}"
+            kill $PID 2>/dev/null || true
+            cd ../..
+            exit 1
+        fi
         kill $PID 2>/dev/null || true
     fi
     cd ../..
@@ -203,7 +215,7 @@ services:
       - --grpc-gateway-host=0.0.0.0
       - --blob-storage-layout=by-epoch
       - --checkpoint-sync-url=https://checkpoint-sync.sepolia.ethpandaops.io
-      - --genesis-beacon-api_url=https://checkpoint-sync.sepolia.ethpandaops.io
+      - --genesis-beacon-api-url=https://checkpoint-sync.sepolia.ethpandaops.io
       - --accept-terms-of-use
     ports:
       - 3500:3500
