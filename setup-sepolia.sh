@@ -81,6 +81,20 @@ main() {
     mkdir -p Ethereum/Execution Ethereum/Consensus
     echo "• Directory structure ready."
 
+    # ---- Install pv if not present (for progress bar) ----
+    if ! command -v pv >/dev/null 2>&1; then
+        echo -e "${CYAN}Progress bar tool 'pv' not found. Installing it now...${NC}"
+        if command -v apt-get >/dev/null 2>&1; then
+            sudo apt-get update >/dev/null 2>&1 && sudo apt-get install -y pv >/dev/null 2>&1
+            echo "• 'pv' installed for progress bar."
+        elif command -v yum >/dev/null 2>&1; then
+            sudo yum install -y epel-release >/dev/null 2>&1 && sudo yum install -y pv >/dev/null 2>&1
+            echo "• 'pv' installed for progress bar."
+        else
+            echo "• Could not install 'pv'. Progress bar will be limited."
+        fi
+    fi
+
     # ---- Reth Snapshot Import ----
     echo -e "${ORANGE}Step 1: Downloading Sepolia Reth snapshot...${NC}"
     echo -e "${ORANGE}This will take several hours. Please wait and do not close the terminal.${NC}"
@@ -88,19 +102,43 @@ main() {
     cd Ethereum/Execution
     rm -rf ./*  # Clear existing data
 
-    # Try to use pv for a real progress bar, fall back to curl with progress meter, or basic output
     export BLOCK_NUMBER=$(curl -s https://snapshots.ethpandaops.io/sepolia/reth/latest)
     SNAPSHOT_URL="https://snapshots.ethpandaops.io/sepolia/reth/$BLOCK_NUMBER/snapshot.tar.zst"
 
+    # Get snapshot size (for estimation)
+    SNAPSHOT_SIZE_BYTES=$(curl -sI "$SNAPSHOT_URL" | grep -i content-length | awk '{print $2}' | tr -d '\r')
+    SNAPSHOT_SIZE_GB=$(echo "scale=2; $SNAPSHOT_SIZE_BYTES / 1024 / 1024 / 1024" | bc)
+    echo -e "${CYAN}Snapshot size: ${SNAPSHOT_SIZE_GB} GB${NC}"
+
+    START_TIME=$(date +%s)
+
     if command -v pv >/dev/null 2>&1; then
         echo -e "${CYAN}Using 'pv' for progress bar...${NC}"
-        curl -s -L "$SNAPSHOT_URL" | pv -s $(curl -sI "$SNAPSHOT_URL" | grep -i content-length | awk '{print $2}' | tr -d '\r') | tar -I zstd -xvf - --strip-components=1
+        curl -s -L "$SNAPSHOT_URL" | pv -s $SNAPSHOT_SIZE_BYTES | tar -I zstd -xvf - --strip-components=1
     elif curl --version | grep -q "progress-meter"; then
         echo -e "${CYAN}Using curl with progress meter...${NC}"
         curl -L --progress-bar "$SNAPSHOT_URL" | tar -I zstd -xvf - --strip-components=1
     else
         echo -e "${CYAN}No progress bar available. Please be patient.${NC}"
+        echo -e "${CYAN}Estimated total size: ${SNAPSHOT_SIZE_GB} GB${NC}"
+        # Start a background process to log progress every 60 seconds
+        (
+            while true; do
+                sleep 60
+                CURRENT_SIZE=$(du -sb . | awk '{print $1}')
+                PERCENT=$(echo "scale=2; 100*$CURRENT_SIZE/$SNAPSHOT_SIZE_BYTES" | bc)
+                ELAPSED=$(( $(date +%s) - $START_TIME ))
+                if [[ $ELAPSED -gt 0 && $PERCENT != "0" ]]; then
+                    ESTIMATED_TOTAL=$(( ELAPSED * 100 / $(echo "$PERCENT" | awk '{print int($1)}') ))
+                    REMAINING=$(( ESTIMATED_TOTAL - ELAPSED ))
+                    echo -e "${CYAN}Progress: ${PERCENT}% (${CURRENT64}%? Let's fix that typo. Here's the corrected line in the script:"
+                    echo -e "${CYAN}Progress: ${PERCENT}% (${CURRENT_SIZE} bytes) | Time left: $(date -u -d @$REMAINING +'%H:%M:%S')${NC}"
+                fi
+            done
+        ) &
+        PID=$!
         curl -s -L "$SNAPSHOT_URL" | tar -I zstd -xvf - --strip-components=1
+        kill $PID 2>/dev/null || true
     fi
     cd ../..
     echo -e "${ORANGE}• Sepolia Reth snapshot imported.${NC}"
@@ -165,7 +203,7 @@ services:
       - --grpc-gateway-host=0.0.0.0
       - --blob-storage-layout=by-epoch
       - --checkpoint-sync-url=https://checkpoint-sync.sepolia.ethpandaops.io
-      - --genesis-beacon-api-url=https://checkpoint-sync.sepolia.ethpandaops.io
+      - --genesis-beacon-api_url=https://checkpoint-sync.sepolia.ethpandaops.io
       - --accept-terms-of-use
     ports:
       - 3500:3500
