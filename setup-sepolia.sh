@@ -81,6 +81,30 @@ main() {
     mkdir -p Ethereum/Execution Ethereum/Consensus
     echo "• Directory structure ready."
 
+    # ---- Reth Snapshot Import ----
+    echo -e "${ORANGE}Step 1: Downloading Sepolia Reth snapshot...${NC}"
+    echo -e "${ORANGE}This will take several hours. Please wait and do not close the terminal.${NC}"
+    echo -e "${ORANGE}Progress will be shown below:${NC}"
+    cd Ethereum/Execution
+    rm -rf ./*  # Clear existing data
+
+    # Try to use pv for a real progress bar, fall back to curl with progress meter, or basic output
+    export BLOCK_NUMBER=$(curl -s https://snapshots.ethpandaops.io/sepolia/reth/latest)
+    SNAPSHOT_URL="https://snapshots.ethpandaops.io/sepolia/reth/$BLOCK_NUMBER/snapshot.tar.zst"
+
+    if command -v pv >/dev/null 2>&1; then
+        echo -e "${CYAN}Using 'pv' for progress bar...${NC}"
+        curl -s -L "$SNAPSHOT_URL" | pv -s $(curl -sI "$SNAPSHOT_URL" | grep -i content-length | awk '{print $2}' | tr -d '\r') | tar -I zstd -xvf - --strip-components=1
+    elif curl --version | grep -q "progress-meter"; then
+        echo -e "${CYAN}Using curl with progress meter...${NC}"
+        curl -L --progress-bar "$SNAPSHOT_URL" | tar -I zstd -xvf - --strip-components=1
+    else
+        echo -e "${CYAN}No progress bar available. Please be patient.${NC}"
+        curl -s -L "$SNAPSHOT_URL" | tar -I zstd -xvf - --strip-components=1
+    fi
+    cd ../..
+    echo -e "${ORANGE}• Sepolia Reth snapshot imported.${NC}"
+
     # ---- JWT Secret ----
     echo -e "${ORANGE}Generating JWT secret...${NC}"
     if [ -d Ethereum/jwt.hex ]; then
