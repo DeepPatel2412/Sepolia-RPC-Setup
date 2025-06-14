@@ -11,8 +11,8 @@ main() {
 
     # ---- Branded Header ----
     echo -e "${ORANGE}============================================================${NC}"
-    echo -e "${ORANGE}         ETHEREUM SEPOLIA NODE INSTALLER${NC}"
-    echo -e "${ORANGE}                  by Creed${NC}"
+    echo -e "${ORANGE}            ETHEREUM SEPOLIA NODE INSTALLER${NC}"
+    echo -e "${ORANGE}                       by Creed${NC}"
     echo -e "${ORANGE}============================================================${NC}"
 
     # ---- Pre-flight Check ----
