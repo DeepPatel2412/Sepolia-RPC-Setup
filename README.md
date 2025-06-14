@@ -77,7 +77,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Se
 This will be the options available to choose from :
 - Reth
 - Prysm
-- HAproxy
+- HAproxy (yet to be implemented)
 - Dozzle
 - All
 ------------------------------------------
