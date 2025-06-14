@@ -10,10 +10,10 @@ main() {
     CYAN='\033[36m'
 
     # ---- Branded Header ----
-    echo -e "${NC}============================================================${NC}"
-    echo -e "${ORANGE}             ETHEREUM SEPOLIA NODE INSTALLER${NC}"
-    echo -e "${ORANGE}                       by Creed${NC}"
-    echo -e "${NC}============================================================${NC}"
+    echo -e "${ORANGE}============================================================${NC}"
+    echo -e "${ORANGE}      ETHEREUM SEPOLIA NODE INSTALLER${NC}"
+    echo -e "${ORANGE}                by Creed${NC}"
+    echo -e "${ORANGE}============================================================${NC}"
 
     # ---- Pre-flight Check ----
     echo -e "${ORANGE}Recommended System Specifications:${NC}"
@@ -21,7 +21,7 @@ main() {
     echo "• CPU: 6+ cores"
     echo "• RAM: 16GB+"
 
-    echo -e "${NC}============================================================${NC}"
+    echo -e "${ORANGE}============================================================${NC}"
     echo -e "${ORANGE}Checking your system resources...${NC}\n"
 
     AVAILABLE_SPACE=$(df -BG --output=avail / | tail -1 | tr -d ' ')
@@ -34,16 +34,16 @@ main() {
     echo "• Total RAM: ${TOTAL_RAM}GB"
 
     WARNING=""
-    [[ ${AVAILABLE_SPACE%G} -lt 750 ]] && WARNING+="${RED}Low storage space detected${NC}\n"
-    [[ ${CPU_CORES} -lt 6 ]] && WARNING+="${RED}Insufficient CPU cores detected${NC}\n"
-    [[ ${TOTAL_RAM} -lt 16 ]] && WARNING+="${RED}Insufficient RAM detected${NC}\n"
+    [[ ${AVAILABLE_SPACE%G} -lt 750 ]] && WARNING+="${RED}• Low storage space detected${NC}\n"
+    [[ ${CPU_CORES} -lt 6 ]] && WARNING+="${RED}• Insufficient CPU cores detected${NC}\n"
+    [[ ${TOTAL_RAM} -lt 16 ]] && WARNING+="${RED}• Insufficient RAM detected${NC}\n"
 
     if [[ -n "$WARNING" ]]; then
-        echo -e "${RED}• Potential Issues Found:${NC}"
+        echo -e "${RED}Potential Issues Found:${NC}"
         printf "$WARNING"
         echo "What would you like to do?"
-        echo -e "${NC}1: Continue installation despite warnings${NC}"
-        echo -e "${NC}2: Abort installation${NC}"
+        echo -e "${CYAN}1: Continue installation despite warnings${NC}"
+        echo -e "${CYAN}2: Abort installation${NC}"
         echo -n "• Enter your choice (1-2): "
         read CHOICE
         case "$CHOICE" in
@@ -61,7 +61,7 @@ main() {
         esac
     fi
 
-    echo -e "${NC}============================================================${NC}"
+    echo -e "${ORANGE}============================================================${NC}"
 
     # ---- Docker & Compose Check ----
     echo -e "${ORANGE}Checking for Docker and Docker Compose...${NC}"
@@ -245,7 +245,7 @@ EOF
 
     # ---- Firewall Setup and Whitelist Function ----
     ufw_whitelist_ips() {
-      echo -e "${NC}============================================================${NC}"
+      echo -e "${ORANGE}============================================================${NC}"
       echo "• Enter IP address(es) separated by comma"
       echo "• Example: 192.168.1.15,203.0.113.42"
       echo -n "• IP addresses: "
@@ -265,7 +265,7 @@ EOF
       sudo ufw reload >/dev/null 2>&1
     }
 
-    echo -e "${NC}============================================================${NC}"
+    echo -e "${ORANGE}============================================================${NC}"
     echo -e "${ORANGE}Configuring firewall rules...${NC}"
     if command -v ufw >/dev/null 2>&1; then
       sudo ufw allow 30303/tcp >/dev/null 2>&1
@@ -307,27 +307,28 @@ EOF
     REMOTE_IP=$PUBLIC_IP
 
     # ---- Node Status ----
-    echo -e "${NC}============================================================${NC}"
+    echo -e "${ORANGE}============================================================${NC}"
     echo -e "${ORANGE}         ETHEREUM SEPOLIA NODE STATUS${NC}"
-    echo -e "${NC}============================================================${NC}"
+    echo -e "${ORANGE}============================================================${NC}"
     echo -e "${ORANGE}Local (Aztec node on this VPS)${NC}"
     echo "• Sepolia RPC    : ✔ http://localhost:8545/"
     echo "• Beacon RPC     : ✔ http://localhost:3500/"
-    echo -e "\n${ORANGE}Remote (Aztec node on another VPS)${NC}"
+    echo -e "\n${ORANGE}Remote (Aztec node on different VPS)${NC}"
     echo "• Sepolia RPC    : ✔ http://${REMOTE_IP}:8545/"
     echo "• Beacon RPC     : ✔ http://${REMOTE_IP}:3500/"
-    echo -e "\n${ORANGE}Monitoring${NC}"
+    echo -e "\n${ORANGE}Monitoring logs${NC}"
     echo "• Dozzle         : ✔ http://${REMOTE_IP}:9999/"
+    echo "(Open this dozzle link on any browser to monitor your logs"
     echo -e "${ORANGE}============================================================${NC}"
 
     # ---- Branded Footer ----
-    echo -e "${NC}============================================================${NC}"
+    echo -e "${ORANGE}============================================================${NC}"
     echo -e "${ORANGE}         SETUP COMPLETE - CREED'S TOOLS${NC}"
-    echo -e "${NC}------------------------------------------------------------${NC}"
+    echo -e "${ORANGE}------------------------------------------------------------${NC}"
     echo "• Need help? Reach out:"
 printf "• %-9s : @web3.creed\n" "Discord"
 printf "• %-9s : @web3_creed\n" "Twitter"
-    echo -e "${NC}============================================================${NC}"
+    echo -e "${ORANGE}============================================================${NC}"
 }
 
 main
