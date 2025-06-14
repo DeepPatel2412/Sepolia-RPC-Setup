@@ -10,10 +10,10 @@ main() {
     CYAN='\033[36m'
 
     # ---- Branded Header ----
-    echo -e "${ORANGE}============================================================${NC}"
+    echo -e "${CYAN}============================================================${NC}"
     echo -e "${ORANGE}             ETHEREUM SEPOLIA NODE INSTALLER${NC}"
     echo -e "${ORANGE}                       by Creed${NC}"
-    echo -e "${ORANGE}============================================================${NC}"
+    echo -e "${CYAN}============================================================${NC}"
 
     # ---- Pre-flight Check ----
     echo -e "${ORANGE}Recommended System Specifications:${NC}"
@@ -34,12 +34,12 @@ main() {
     echo "• Total RAM: ${TOTAL_RAM}GB"
 
     WARNING=""
-    [[ ${AVAILABLE_SPACE%G} -lt 750 ]] && WARNING+="${RED}• Low storage space detected${NC}\n"
-    [[ ${CPU_CORES} -lt 6 ]] && WARNING+="${RED}• Insufficient CPU cores detected${NC}\n"
-    [[ ${TOTAL_RAM} -lt 16 ]] && WARNING+="${RED}• Insufficient RAM detected${NC}\n"
+    [[ ${AVAILABLE_SPACE%G} -lt 750 ]] && WARNING+="${RED}Low storage space detected${NC}\n"
+    [[ ${CPU_CORES} -lt 6 ]] && WARNING+="${RED}Insufficient CPU cores detected${NC}\n"
+    [[ ${TOTAL_RAM} -lt 16 ]] && WARNING+="${RED}Insufficient RAM detected${NC}\n"
 
     if [[ -n "$WARNING" ]]; then
-        echo -e "${RED}Potential Issues Found:${NC}"
+        echo -e "${RED}• Potential Issues Found:${NC}"
         printf "$WARNING"
         echo "What would you like to do?"
         echo -e "${CYAN}1: Continue installation despite warnings${NC}"
