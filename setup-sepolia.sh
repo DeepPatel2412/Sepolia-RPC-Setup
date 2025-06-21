@@ -105,6 +105,12 @@ main() {
     export BLOCK_NUMBER=$(curl -s https://snapshots.ethpandaops.io/sepolia/reth/latest)
     SNAPSHOT_URL="https://snapshots.ethpandaops.io/sepolia/reth/$BLOCK_NUMBER/snapshot.tar.zst"
 
+    if [[ -z "$BLOCK_NUMBER" ]]; then
+        echo -e "${RED}ERROR: No Reth snapshot available for Sepolia. Please check or sync from scratch.${NC}"
+        cd ../..
+        exit 1
+    fi
+
     # Get snapshot size (for estimation)
     SNAPSHOT_SIZE_BYTES=$(curl -sI "$SNAPSHOT_URL" | grep -i content-length | awk '{print $2}' | tr -d '\r')
     SNAPSHOT_SIZE_GB=$(echo "scale=2; $SNAPSHOT_SIZE_BYTES / 1024 / 1024 / 1024" | bc)
@@ -112,6 +118,7 @@ main() {
 
     START_TIME=$(date +%s)
 
+    # --- Progress Bar Logic ---
     if command -v pv >/dev/null 2>&1; then
         echo -e "${CYAN}Using 'pv' for progress bar...${NC}"
         if ! curl -s -L "$SNAPSHOT_URL" | pv -s $SNAPSHOT_SIZE_BYTES | tar -I zstd -xvf - --strip-components=1; then
@@ -326,8 +333,8 @@ EOF
     echo -e "${ORANGE}         SETUP COMPLETE - CREED'S TOOLS${NC}"
     echo -e "${ORANGE}------------------------------------------------------------${NC}"
     echo "• Need help? Reach out:"
-printf "• %-9s : @web3.creed\n" "Discord"
-printf "• %-9s : @web3_creed\n" "Twitter"
+    printf "• %-9s : @web3.creed\n" "Discord"
+    printf "• %-9s : @web3_creed\n" "Twitter"
     echo -e "${ORANGE}============================================================${NC}"
 }
 
