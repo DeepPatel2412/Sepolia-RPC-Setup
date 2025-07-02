@@ -7,7 +7,7 @@ Deploy and manage an Ethereum Sepolia RPC node on your VPS in seconds with a sin
 Ubuntu 22.04+ recommended
 - 4 CPU Cores
 - 8GB RAM
-- 750GB SSD
+- 1TB+ SSD
 - Root or sudo access
 
 ------------------------------------------
@@ -22,14 +22,25 @@ Ubuntu 22.04+ recommended
 ------------------------------------------
 
 ## 🚀 Quick Start & Management Guide
-### Initial sync will take upto 1-3 Days 
+### Initial sync will take upto 8-12 Hrs 
 - depending on your SSD/Network Speed and other specs,Until than you won't be able to use the rpc after setup.
+
+## ✅ Start Screen:**
+```
+screen -S rpc
+```
+
 ## ✅ To install, run:**
 ```
 bash <(curl -Ls https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/setup-sepolia.sh)
 ```
 
-## 🔍 Monitor node logs (Run in any browser)
+## ✅ End Screen: (Only after the whole setup is complete)**
+```
+screen -XS rpc quit
+```
+
+## 🔍 Monitor rpc logs once the setup is complete (Run in any browser)
 ```
 http://your-RPC-IP:9999/
 ```
@@ -46,6 +57,7 @@ Replace your VPS ip and run open it in browser.
 - Checks your VPS for required CPU, RAM, and disk space.
 - Installs Docker & Docker Compose if missing.
 - Creates the `Ethereum` data directory.
+- Download snapshot
 - Generates a JWT secret and sets up an IP whitelist for secure RPC access.
 - Downloads and configures Docker Compose for Reth, Prysm, and Dozzle.
 - Configures your firewall to only allow necessary ports.
