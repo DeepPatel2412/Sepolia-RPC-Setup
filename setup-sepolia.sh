@@ -15,9 +15,9 @@ echo -e "${ORANGE}============================================================${
 
 # --- System Check ---
 echo -e "${ORANGE}Recommended System Specifications:${NC}"
-echo "• Storage: 750GB-1TB SSD"
-echo "• CPU: 6+ cores"
-echo "• RAM: 16GB+"
+echo "• CPU: 6 Cores"
+echo "• RAM: 16 GB"
+echo "• Storage: 1TB SSD"
 echo -e "${ORANGE}============================================================${NC}"
 echo -e "${ORANGE}Checking your system resources...${NC}"
 
@@ -31,9 +31,9 @@ echo "• CPU Cores: ${CPU_CORES}"
 echo "• Total RAM: ${TOTAL_RAM}GB"
 
 WARNING=""
-[[ ${AVAILABLE_SPACE%G} -lt 750 ]] && WARNING+="${RED}• Low storage space detected${NC}\n"
-[[ ${CPU_CORES} -lt 6 ]] && WARNING+="${RED}• Insufficient CPU cores detected${NC}\n"
-[[ ${TOTAL_RAM} -lt 16 ]] && WARNING+="${RED}• Insufficient RAM detected${NC}\n"
+[[ ${AVAILABLE_SPACE%G} -lt 1000 ]] && WARNING+="${RED}• Low storage space detected (minimum 1TB required)${NC}\n"
+[[ ${CPU_CORES} -lt 6 ]] && WARNING+="${RED}• Insufficient CPU cores detected (minimum 6 required)${NC}\n"
+[[ ${TOTAL_RAM} -lt 16 ]] && WARNING+="${RED}• Insufficient RAM detected (minimum 16GB required)${NC}\n"
 
 if [[ -n "$WARNING" ]]; then
   echo -e "${RED}Potential Issues Found:${NC}"
