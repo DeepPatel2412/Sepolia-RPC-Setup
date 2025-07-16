@@ -131,7 +131,7 @@ echo "Latest Reth snapshot for Sepolia is at block: $BLOCK_NUMBER"
 SNAPSHOT_URL="https://snapshots.ethpandaops.io/sepolia/reth/$BLOCK_NUMBER/snapshot.tar.zst"
 echo "Snapshot URL: $SNAPSHOT_URL"
 
-echo -e "${ORANGE}Downloading snapshot using aria2c (auto-resume enabled)...${NC}"
+echo -e "${ORANGE}• Downloading snapshot using aria2c (auto-resume enabled)...${NC}"
 cd Ethereum/Execution
 rm -rf ./*
 aria2c -x16 -s16 --continue=true "$SNAPSHOT_URL" -o snapshot.tar.zst
@@ -142,9 +142,17 @@ if [ ! -f "snapshot.tar.zst" ]; then
   exit 1
 fi
 
-echo -e "${ORANGE}Extracting snapshot to Execution directory...${NC}"
-tar -I zstd -xvf snapshot.tar.zst --strip-components=1
+echo -e "${ORANGE}• Extracting snapshot to Execution directory...${NC}"
+
+if command -v pv >/dev/null 2>&1; then
+  pv snapshot.tar.zst | tar -I zstd -xf -
+else
+  tar -I zstd -xf snapshot.tar.zst
+fi
+
 rm snapshot.tar.zst
+echo -e "${GREEN}• Snapshot archive removed from disk.${NC}"
+
 cd ../..
 echo -e "${GREEN}• Reth snapshot imported.${NC}"
 echo -e "${ORANGE}============================================================${NC}"
@@ -241,6 +249,8 @@ echo -e "${ORANGE}============================================================${
 # --- Firewall Setup (Optional) ---
 echo -e "${ORANGE}Configuring firewall rules (optional)...${NC}"
 if command -v ufw >/dev/null 2>&1; then
+  ufw allow 22/tcp >/dev/null 2>&1
+  ufw allow ssh >/dev/null 2>&1
   ufw allow 30303/tcp >/dev/null 2>&1
   ufw allow 30303/udp >/dev/null 2>&1
   ufw allow 12000/udp >/dev/null 2>&1
@@ -273,5 +283,5 @@ echo -e "${ORANGE}SETUP COMPLETE - CREED'S TOOLS${NC}"
 echo -e "${ORANGE}------------------------------------------------------------${NC}"
 echo "• Need help? Reach out:"
 printf "• %-9s : @web3.creed\n" "Discord"
-printf "• %-9s : @web3_creed(Suspended Right Now)\n" "Twitter"
+printf "• %-9s : @web3mrcat\n" "Twitter"
 echo -e "${ORANGE}============================================================${NC}"
