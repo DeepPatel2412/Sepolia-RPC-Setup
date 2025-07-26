@@ -29,18 +29,16 @@ Ubuntu 22.04+ recommended
 ```
 screen -dmS rpc bash -c 'clear; bash <(curl -sLS https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/refs/heads/main/setup-sepolia.sh); exec bash' && screen -r rpc
 ```
-
-## ✅ End Screen: (Only after the whole setup is complete)
-```
-screen -XS rpc quit
-```
-
 ## 🔍 Monitor rpc logs once the setup is complete (Run in any browser)
 ```
 http://your-RPC-IP:9999/
 ```
 Replace your VPS ip and run open it in browser. 
 
+## ✅ End Screen: (Only after the whole setup is complete)
+```
+screen -XS rpc quit
+```
 ------------------------------------------
 ## ✔️ Endpoints after setup (use localhost if same vps - use vpsIP if seperate vps )
 - **Reth (RPC):** `http://<localhost/YOUR_SERVER_IP>:8545` 
