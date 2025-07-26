@@ -25,14 +25,9 @@ Ubuntu 22.04+ recommended
 ### Initial sync will take upto 8-12 Hrs 
 - depending on your SSD/Network Speed and other specs,Until than you won't be able to use the rpc after setup.
 
-## ✅ Start Screen:**
-```
-screen -S rpc
-```
-
 ## ✅ To install, run:**
 ```
-bash <(curl -Ls https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/setup-sepolia.sh)
+screen -dmS rpc bash -c 'clear; bash <(curl -sLS https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/refs/heads/main/setup-sepolia.sh); exec bash' && screen -r rpc
 ```
 
 ## ✅ End Screen: (Only after the whole setup is complete)**
@@ -51,7 +46,12 @@ Replace your VPS ip and run open it in browser.
 - **Reth (RPC):** `http://<localhost/YOUR_SERVER_IP>:8545` 
 - **Prysm (Beacon):** `http://<localhost/YOUR_SERVER_IP>:3500`
 - **Dozzle Monitoring:** `http://<YOUR_SERVER_IP>:9999` (Open In Browser To Monitor Node Logs)
-  
+------------------------------------------
+## 📍 Add IPs to your Whitelist (Run)
+- Exacmple : 12.1203.09 when asked to enter IP
+```
+bash <(curl -Ls https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/ufwWhitelistTool)
+```
 ------------------------------------------
 ## 💭 What happens when you run the setup command?
 - Checks your VPS for required CPU, RAM, and disk space.
@@ -63,7 +63,6 @@ Replace your VPS ip and run open it in browser.
 - Configures your firewall to only allow necessary ports.
 - Starts all services in Docker containers.
 - Prints your RPC, Beacon, and monitoring URLs.
-  
 ------------------------------------------
 ## 📂 Directory Structure (For info only do not run this)
 After setup, your directory tree will look like this:
@@ -72,18 +71,9 @@ Ethereum/
 ├── Execution/
 ├── Consensus/
 ├── docker-compose.yml
-├── haproxy.cfg
 ├── jwt.hex
 └── whitelist.lst
 ```
-
-------------------------------------------
-## 📍 Add IPs to your Whitelist (Run)
-- Exacmple : 12.1203.09 when asked to enter IP
-```
-bash <(curl -Ls https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/ufwWhitelistTool)
-```
-
 ------------------------------------------
 ## ⚠️ Security Tips
 - Only whitelist trusted IPs for RPC access.
