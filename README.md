@@ -25,12 +25,12 @@ Ubuntu 22.04+ recommended
 
 - depending on your SSD/Network Speed and other specs,Until than you won't be able to use the rpc after setup.
 
-## ✅ To install, run: (Initial sync will take upto 8-12 Hrs ) **
+## ✅ To install, run: (Initial sync will take upto 8-12 Hrs )
 ```
 screen -dmS rpc bash -c 'clear; bash <(curl -sLS https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/refs/heads/main/setup-sepolia.sh); exec bash' && screen -r rpc
 ```
 
-## ✅ End Screen: (Only after the whole setup is complete)**
+## ✅ End Screen: (Only after the whole setup is complete)
 ```
 screen -XS rpc quit
 ```
