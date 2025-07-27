@@ -23,11 +23,14 @@ echo "• Storage: 1TB SSD"
 echo -e "${ORANGE}============================================================${NC}"
 echo -e "${ORANGE}Checking your system resources...${NC}"
 
-AVAILABLE_SPACE=$(df -BG --output=avail / | tail -1 | tr -d 'G ')
+# Use current directory for storage check
+AVAILABLE_SPACE=$(df -BG --output=avail . | tail -1 | tr -d 'G ')
+MOUNT_POINT=$(df -h . | awk 'NR==2 {print $6}')
 CPU_CORES=$(nproc)
 TOTAL_RAM=$(free -g | awk '/Mem:/ {print $2}')
 
 echo "Your System Resources:"
+echo "• Checked mount point: $MOUNT_POINT"
 echo "• Available Storage: ${AVAILABLE_SPACE}G"
 echo "• CPU Cores: ${CPU_CORES}"
 echo "• Total RAM: ${TOTAL_RAM}GB"
@@ -150,7 +153,7 @@ fi
 if $SUCCESS; then
 
   get_used_storage_gb() {
-    df --output=used -BG / | tail -1 | tr -d 'G '
+    df --output=used -BG . | tail -1 | tr -d 'G '
   }
 
   echo -e "${ORANGE}Fetching latest Reth snapshot for Sepolia...${NC}"
