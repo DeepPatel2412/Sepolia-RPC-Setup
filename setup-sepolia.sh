@@ -73,6 +73,25 @@ if ! $SUCCESS; then
   echo -e "${RED}Setup aborted due to system resource warnings or user abort.${NC}"
 else
 
+# --- Start Peak Storage Monitor ---
+STORAGE_BEFORE=$(df -BG --output=used . | tail -1 | tr -d 'G ')
+PEAK_STORAGE_FILE=$(mktemp)
+echo "$STORAGE_BEFORE" > "$PEAK_STORAGE_FILE"
+
+echo -e "${ORANGE}Starting peak storage monitor in the background...${NC}"
+{
+  PEAK_SO_FAR=$STORAGE_BEFORE
+  while ps -p $$ > /dev/null; do
+    CURRENT_USED=$(df -BG --output=used . | tail -1 | tr -d 'G ' || echo "$PEAK_SO_FAR")
+    if (( CURRENT_USED > PEAK_SO_FAR )); then
+      PEAK_SO_FAR=$CURRENT_USED
+      echo "$PEAK_SO_FAR" > "$PEAK_STORAGE_FILE"
+    fi
+    sleep 2
+  done
+} &
+MONITOR_PID=$!
+
 echo -e "${ORANGE}============================================================${NC}"
 
 # --- Prerequisites ---
@@ -109,30 +128,25 @@ if $SUCCESS; then
   fi
 fi
 
-# --- aria2c ---
-if $SUCCESS; then
-  install_apt_package_if_needed aria2
-fi
-
 # --- zstd ---
 if $SUCCESS; then
   install_apt_package_if_needed zstd
 fi
 
-# --- pv (optional, for progress bar) ---
+# --- pv (for progress bar) ---
 if $SUCCESS; then
   if ! command -v pv >/dev/null 2>&1; then
-    echo -e "${CYAN}• pv not found. Installing it now...${NC}"
+    echo -e "${CYAN}• pv not found. Installing it now for a progress bar...${NC}"
     if command -v apt-get >/dev/null 2>&1; then
-      sudo apt-get update -y >/dev/null 2>&1 && sudo apt-get install -y pv >/dev/null 2>&1 && echo "• 'pv' installed for progress bar." || echo "• Could not install 'pv'. Progress bar will be limited."
+      sudo apt-get update -y >/dev/null 2>&1 && sudo apt-get install -y pv >/dev/null 2>&1 && echo "• 'pv' installed." || echo "• Could not install 'pv'. Progress bar will be omitted."
     elif command -v yum >/dev/null 2>&1; then
       sudo yum install -y epel-release >/dev/null 2>&1
-      sudo yum install -y pv >/dev/null 2>&1 && echo "• 'pv' installed for progress bar." || echo "• Could not install 'pv'. Progress bar will be limited."
+      sudo yum install -y pv >/dev/null 2>&1 && echo "• 'pv' installed." || echo "• Could not install 'pv'. Progress bar will be omitted."
     else
-      echo "• Could not install 'pv'. Progress bar will be limited."
+      echo "• Could not install 'pv'. Progress bar will be omitted."
     fi
   else
-    echo "• pv already installed."
+    echo "• pv (for progress bar) already installed."
   fi
 fi
 
@@ -149,12 +163,8 @@ if $SUCCESS; then
   echo -e "${ORANGE}============================================================${NC}"
 fi
 
-# --- Snapshot Section ---
+# --- Snapshot Section using curl streaming ---
 if $SUCCESS; then
-
-  get_used_storage_gb() {
-    df --output=used -BG . | tail -1 | tr -d 'G '
-  }
 
   echo -e "${ORANGE}Fetching latest Reth snapshot for Sepolia...${NC}"
   BLOCK_NUMBER=$(curl -s "https://snapshots.ethpandaops.io/sepolia/reth/latest")
@@ -176,48 +186,22 @@ if $SUCCESS; then
 fi
 
 if $SUCCESS; then
+  echo -e "${ORANGE}• Downloading and extracting snapshot (streaming)...${NC}"
+
+  # Clean out previous contents
   rm -rf ./*
 
-  mkfifo snapshot_pipe
-
-  STORAGE_BEFORE=$(get_used_storage_gb)
-  PEAK_STORAGE=$STORAGE_BEFORE
-
-  echo -e "${ORANGE}• Downloading and extracting snapshot (streaming with progress)...${NC}"
-
-  {
-    while true; do
-      USED=$(get_used_storage_gb)
-      if (( USED > PEAK_STORAGE )); then
-        PEAK_STORAGE=$USED
-      fi
-      sleep 2
-    done
-  } &
-  LIVE_MONITOR_PID=$!
-
-  aria2c -x16 -s16 --continue=true "$SNAPSHOT_URL" -o snapshot_pipe &
-  ARIA_PID=$!
-
+  # Use curl | pv | tar streaming pipeline with silenced curl output
   if command -v pv >/dev/null 2>&1; then
-    pv snapshot_pipe | tar -I zstd -xf - || SUCCESS=false
+    curl -s -L "$SNAPSHOT_URL" | pv | tar -I zstd -xf - || SUCCESS=false
   else
-    tar -I zstd -xf snapshot_pipe || SUCCESS=false
+    curl -s -L "$SNAPSHOT_URL" | tar -I zstd -xf - || SUCCESS=false
   fi
 
-  kill "$ARIA_PID" 2>/dev/null
-  wait "$ARIA_PID" 2>/dev/null || true
-
-  kill "$LIVE_MONITOR_PID" 2>/dev/null
-  wait "$LIVE_MONITOR_PID" 2>/dev/null || true
-
-  rm snapshot_pipe || true
   cd ../.. || true
 
   if $SUCCESS; then
     echo -e "${GREEN}Snapshot imported successfully.${NC}"
-    STORAGE_DELTA=$((PEAK_STORAGE - STORAGE_BEFORE))
-    echo -e "${CYAN}• Peak storage used during snapshot download and extraction: ${STORAGE_DELTA} GB${NC}"
   else
     echo -e "${RED}ERROR: Snapshot download or extraction failed.${NC}"
   fi
@@ -257,6 +241,8 @@ services:
       - --chain=sepolia
       - --full
       - --datadir=/data
+      - --prune.mode
+      - distance=216000
       - --http
       - --http.addr=0.0.0.0
       - --http.api=eth,net,web3,admin
@@ -349,7 +335,7 @@ if $SUCCESS; then
     ufw allow 30303/udp >/dev/null 2>&1
     ufw allow 12000/udp >/dev/null 2>&1
     ufw allow 13000/tcp >/dev/null 2>&1
-    ufw allow 9999/tcp >/dev/null 2>&1  # Dozzle
+    ufw allow 9999/tcp >/dev/null 2>&1  # Dozzle monitoring
 
     ufw deny 8545/tcp >/dev/null 2>&1
     ufw deny 3500/tcp >/dev/null 2>&1
@@ -362,21 +348,44 @@ if $SUCCESS; then
   else
     echo "• UFW not installed. Skipping firewall setup."
   fi
-  echo -e "${ORANGE}============================================================${NC}"
+fi
+
+# --- Storage Summary ---
+if $SUCCESS; then
+  # Stop the background monitor
+  kill "$MONITOR_PID" 2>/dev/null
+  wait "$MONITOR_PID" 2>/dev/null || true
+
+  # Read the final peak value and clean up
+  PEAK_STORAGE_DURING_SETUP=$(cat "$PEAK_STORAGE_FILE")
+  rm "$PEAK_STORAGE_FILE"
+
+  STORAGE_AFTER=$(df -BG --output=used . | tail -1 | tr -d 'G ')
+
+  if [ -n "$STORAGE_BEFORE" ] && [ -n "$PEAK_STORAGE_DURING_SETUP" ]; then
+    echo -e "${ORANGE}============================================================${NC}"
+    echo -e "${ORANGE}                    STORAGE SUMMARY${NC}"
+    echo -e "${ORANGE}============================================================${NC}"
+    printf "• Initial Storage Used:         %s\n" "${STORAGE_BEFORE}G"
+    printf "• Peaked Storage During Setup:  ${CYAN}%s${NC}\n" "${PEAK_STORAGE_DURING_SETUP}G"
+    printf "• Final Storage Used:           %s\n" "${STORAGE_AFTER}G"
+  fi
 fi
 
 # --- Node Status Display ---
 if $SUCCESS; then
+  echo -e "${ORANGE}============================================================${NC}"
   echo -e "${ORANGE}ETHEREUM SEPOLIA NODE STATUS (Reth)${NC}"
   echo -e "${ORANGE}============================================================${NC}"
   echo -e "${GREEN}Local (Aztec node on this VPS)${NC}"
   echo "• Sepolia RPC    : ✔ http://localhost:8545/"
   echo "• Beacon RPC     : ✔ http://localhost:3500/"
   echo -e "\n${GREEN}Remote (Aztec node on different VPS)${NC}"
-  echo "• Sepolia RPC    : ✔ http://$(hostname -I | awk '{print $1}'):8545/"
-  echo "• Beacon RPC     : ✔ http://$(hostname -I | awk '{print $1}'):3500/"
+  LOCAL_IP=$(hostname -I | awk '{print $1}')
+  echo "• Sepolia RPC    : ✔ http://$LOCAL_IP:8545/"
+  echo "• Beacon RPC     : ✔ http://$LOCAL_IP:3500/"
   echo -e "\n${GREEN}Monitoring logs${NC}"
-  echo "• Dozzle         : ✔ http://$(hostname -I | awk '{print $1}'):9999/"
+  echo "• Dozzle         : ✔ http://$LOCAL_IP:9999/"
   echo -e "${ORANGE}============================================================${NC}"
 fi
 
