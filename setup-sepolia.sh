@@ -179,6 +179,10 @@ if $SUCCESS; then
   SNAPSHOT_URL="https://snapshots.ethpandaops.io/sepolia/reth/$BLOCK_NUMBER/snapshot.tar.zst"
   echo "Snapshot URL: $SNAPSHOT_URL"
 
+  # Get snapshot size for progress bar ETA and percentage
+  echo "• Getting snapshot size for progress bar..."
+  SNAPSHOT_SIZE=$(curl -sI "$SNAPSHOT_URL" | grep -i 'content-length' | awk '{print $2}' | tr -d '\r')
+
   cd Ethereum/Execution || {
     echo -e "${RED}ERROR: Ethereum/Execution directory not found.${NC}"
     SUCCESS=false
@@ -191,10 +195,18 @@ if $SUCCESS; then
   # Clean out previous contents
   rm -rf ./*
 
-  # Use curl | pv | tar streaming pipeline with silenced curl output
-  if command -v pv >/dev/null 2>&1; then
+  # Use curl | pv | tar streaming pipeline with full progress details
+  if command -v pv >/dev/null 2>&1 && [ -n "$SNAPSHOT_SIZE" ]; then
+    echo "• Snapshot size found. Starting download with full progress details..."
+    # Use -pterb for: percentage, time, eta, rate, bytes
+    curl -s -L "$SNAPSHOT_URL" | pv -pterb -s "$SNAPSHOT_SIZE" | tar -I zstd -xf - || SUCCESS=false
+  elif command -v pv >/dev/null 2>&1; then
+    # Fallback if size couldn't be determined
+    echo "• Could not determine snapshot size. Progress bar will be limited."
     curl -s -L "$SNAPSHOT_URL" | pv | tar -I zstd -xf - || SUCCESS=false
   else
+    # Fallback if pv is not installed
+    echo "• pv not installed. No progress bar will be shown."
     curl -s -L "$SNAPSHOT_URL" | tar -I zstd -xf - || SUCCESS=false
   fi
 
