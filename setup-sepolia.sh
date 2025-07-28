@@ -199,17 +199,16 @@ if $SUCCESS; then
   # Use curl | pv | tar streaming pipeline with full progress details
   if command -v pv >/dev/null 2>&1 && [ -n "$SNAPSHOT_SIZE" ]; then
     echo "• Snapshot size found. Starting download with full progress details..."
-    # Use -pterb for: percentage, time, eta, rate, bytes
-    # Added --retry and --continue-at flags to make the download more robust.
-    curl -L --retry 5 --retry-delay 2 --continue-at - "$SNAPSHOT_URL" | pv -pterb -s "$SNAPSHOT_SIZE" | tar -I zstd -xf - || SUCCESS=false
+    # Use -sS to silence curl's default progress meter.
+    curl -sS -L --retry 5 --retry-delay 2 --continue-at - "$SNAPSHOT_URL" | pv -pterb -s "$SNAPSHOT_SIZE" | tar -I zstd -xf - || SUCCESS=false
   elif command -v pv >/dev/null 2>&1; then
     # Fallback if size couldn't be determined
     echo "• Could not determine snapshot size. Progress bar will be limited."
-    curl -L --retry 5 --retry-delay 2 --continue-at - "$SNAPSHOT_URL" | pv | tar -I zstd -xf - || SUCCESS=false
+    curl -sS -L --retry 5 --retry-delay 2 --continue-at - "$SNAPSHOT_URL" | pv | tar -I zstd -xf - || SUCCESS=false
   else
     # Fallback if pv is not installed
     echo "• pv not installed. No progress bar will be shown."
-    curl -L --retry 5 --retry-delay 2 --continue-at - "$SNAPSHOT_URL" | tar -I zstd -xf - || SUCCESS=false
+    curl -sS -L --retry 5 --retry-delay 2 --continue-at - "$SNAPSHOT_URL" | tar -I zstd -xf - || SUCCESS=false
   fi
 
   cd ../.. || true
