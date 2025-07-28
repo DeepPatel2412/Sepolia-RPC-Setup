@@ -6,6 +6,7 @@ ORANGE='\033[38;5;208m'
 RED='\033[31m'
 CYAN='\033[36m'
 GREEN='\033[32m'
+GRAY='\033[90m'
 
 SUCCESS=true
 
@@ -374,6 +375,80 @@ if $SUCCESS; then
   else
     echo "• UFW not installed. Skipping firewall setup."
   fi
+fi
+
+# --- Monitor Reth Sync Progress ---
+if $SUCCESS; then
+  # We define the function right before we use it for better readability.
+  monitor_reth_sync() {
+      echo "" # Add a blank line for spacing before the monitor starts.
+      echo -e "${CYAN}• The node is now syncing (This screen refreshes automatically)${NC}"
+      
+      first_run=true
+
+      # Main Monitoring Loop
+      while true; do
+          # This trap allows the user to press Ctrl+C to skip monitoring and continue.
+          trap 'echo -e "\n\n${ORANGE}Monitoring skipped by user. Continuing setup...${NC}\n"; return' INT
+          
+          if [ "$first_run" = false ]; then
+              printf "\033[5A" # Move cursor up 5 lines to overwrite the status block
+          fi
+          first_run=false
+
+          SYNC_STATUS=$(curl -s -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"eth_syncing","params":[],"id":1}' "http://localhost:8545")
+
+          LATEST_FINISHED_LINE=$(docker logs reth 2>/dev/null | grep "Finished stage" | tail -1)
+          FINISHED_STAGE_TEXT="${GRAY}Waiting for first stage to finish...${NC}"
+          if [ -n "$LATEST_FINISHED_LINE" ]; then
+              CLEAN_FINISHED_LINE=$(echo "$LATEST_FINISHED_LINE" | sed -e 's/\x1b\[[0-9;]*m//g')
+              PARSED_STAGE_INFO=$(echo "$CLEAN_FINISHED_LINE" | grep -o 'pipeline_stages=[^ ]*' | cut -d'=' -f2)
+              PARSED_STAGE_NAME=$(echo "$CLEAN_FINISHED_LINE" | grep -o 'stage=[^ ]*' | cut -d'=' -f2)
+              if [ -n "$PARSED_STAGE_INFO" ] && [ -n "$PARSED_STAGE_NAME" ]; then
+                  FINISHED_STAGE_TEXT=$(printf "${GREEN}%-7s (%s)${NC}" "$PARSED_STAGE_INFO" "$PARSED_STAGE_NAME")
+              fi
+          fi
+
+          LATEST_RUNNING_LINE=$(docker logs reth 2>/dev/null | grep -E "Executing stage|Committed stage progress" | tail -1)
+          RUNNING_STAGE_TEXT="${GRAY}Initializing...${NC}"
+          if [ -n "$LATEST_RUNNING_LINE" ]; then
+              CLEAN_RUNNING_LINE=$(echo "$LATEST_RUNNING_LINE" | sed -e 's/\x1b\[[0-9;]*m//g')
+              RUNNING_STAGE_INFO=$(echo "$CLEAN_RUNNING_LINE" | grep -o 'pipeline_stages=[^ ]*' | cut -d'=' -f2)
+              RUNNING_STAGE_NAME=$(echo "$CLEAN_RUNNING_LINE" | grep -o 'stage=[^ ]*' | cut -d'=' -f2)
+              RUNNING_STAGE_PCT=$(echo "$CLEAN_RUNNING_LINE" | grep -o 'stage_progress=[^ ]*' | cut -d'=' -f2)
+              if [ -n "$RUNNING_STAGE_INFO" ] && [ -n "$RUNNING_STAGE_NAME" ]; then
+                  if [ -n "$RUNNING_STAGE_PCT" ]; then
+                      RUNNING_STAGE_TEXT=$(printf "${CYAN}%-7s (%s) | Progress: %s${NC}" "$RUNNING_STAGE_INFO" "$RUNNING_STAGE_NAME" "$RUNNING_STAGE_PCT")
+                  else
+                      RUNNING_STAGE_TEXT=$(printf "${CYAN}%-7s (%s)${NC}" "$RUNNING_STAGE_INFO" "$RUNNING_STAGE_NAME")
+                  fi
+              fi
+          fi
+
+          # The `\033[K` at the end of each line clears it from the cursor to the end.
+          if echo "$SYNC_STATUS" | grep -q '"result":false'; then
+              echo -e "${ORANGE}==================== RETH SYNC STATUS =====================\033[K${NC}"
+              echo -e "${GREEN}Synced         - ✔ Synced\033[K${NC}"
+              echo -e "${GREEN}Finished Stage - All stages complete.\033[K${NC}"
+              echo -e "${GREEN}Current Stage  - Done.\033[K${NC}"
+              echo -e "${ORANGE}============================================================\033[K${NC}"
+              sleep 1
+              break # Exit the loop
+          else
+              echo -e "${ORANGE}==================== RETH SYNC STATUS =====================\033[K${NC}"
+              echo -e "${CYAN}Synced         - ⏳ In Progress...\033[K${NC}"
+              echo -e "Finished Stage - $FINISHED_STAGE_TEXT\033[K"
+              echo -e "Current Stage  - $RUNNING_STAGE_TEXT\033[K"
+              echo -e "${ORANGE}============================================================\033[K${NC}"
+          fi
+          sleep 5
+      done
+      # Reset the trap and add a final newline for clean separation.
+      trap - INT
+      echo ""
+  }
+  # Now, call the function we just defined.
+  monitor_reth_sync
 fi
 
 # --- Storage Summary ---
