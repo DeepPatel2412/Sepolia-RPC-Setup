@@ -241,6 +241,7 @@ if $SUCCESS; then
   echo -e "${ORANGE}Writing Docker Compose file...${NC}"
   cat > Ethereum/docker-compose.yml <<'EOF'
 services:
+  # 1. Execution Client (Reth)
   reth:
     image: ghcr.io/paradigmxyz/reth:latest
     container_name: reth
@@ -249,12 +250,21 @@ services:
       - ./Execution:/data
       - ./jwt.hex:/data/jwt.hex
     command:
+      # Basic node configuration
       - node
       - --chain=sepolia
       - --full
       - --datadir=/data
-      - --prune.mode
-      - distance=216000
+
+      # Pruning Configuration: Keeps ~1 month of history to save disk space.
+      - --prune.senderrecovery.distance=216000
+      - --prune.transactionlookup.distance=216000
+      - --prune.receipts.distance=216000
+      - --prune.accounthistory.distance=216000
+      - --prune.storagehistory.distance=216000
+      - --prune.bodies.distance=216000
+
+      # RPC & Engine API Configuration
       - --http
       - --http.addr=0.0.0.0
       - --http.api=eth,net,web3,admin
@@ -266,9 +276,10 @@ services:
       - --authrpc.port=8551
       - --authrpc.jwtsecret=/data/jwt.hex
     ports:
-      - 8545:8545
-      - 8546:8546
+      - "8545:8545"
+      - "8546:8546"
 
+  # 2. Consensus Client (Prysm)
   prysm:
     image: gcr.io/prysmaticlabs/prysm/beacon-chain:latest
     container_name: prysm
@@ -279,10 +290,13 @@ services:
       - ./Consensus:/data
       - ./jwt.hex:/data/jwt.hex
     command:
+      # Basic configuration and connection to the execution client (Reth).
       - --sepolia
       - --datadir=/data
       - --execution-endpoint=http://reth:8551
       - --jwt-secret=/data/jwt.hex
+
+      # API and Checkpoint Sync Configuration
       - --rpc-host=0.0.0.0
       - --grpc-gateway-host=0.0.0.0
       - --blob-storage-layout=by-epoch
@@ -290,8 +304,8 @@ services:
       - --genesis-beacon-api-url=https://checkpoint-sync.sepolia.ethpandaops.io
       - --accept-terms-of-use
     ports:
-      - 3500:3500
-      - 4000:4000
+      - "3500:3500"
+      - "4000:4000"
 EOF
   if [ $? -eq 0 ]; then
     echo -e "${GREEN}• Docker Compose file written.${NC}"
