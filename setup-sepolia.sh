@@ -257,14 +257,6 @@ services:
       - --full
       - --datadir=/data
 
-      # Pruning Configuration: Keeps ~1 month of history to save disk space.
-      - --prune.senderrecovery.distance=216000
-      - --prune.transactionlookup.distance=216000
-      - --prune.receipts.distance=216000
-      - --prune.accounthistory.distance=216000
-      - --prune.storagehistory.distance=216000
-      - --prune.bodies.distance=216000
-
       # RPC & Engine API Configuration
       - --http
       - --http.addr=0.0.0.0
