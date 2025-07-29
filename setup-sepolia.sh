@@ -164,7 +164,7 @@ if $SUCCESS; then
   echo -e "${ORANGE}============================================================${NC}"
 fi
 
-# --- Snapshot Section using curl streaming with retry ---
+# --- Snapshot Section using curl streaming ---
 if $SUCCESS; then
 
   echo -e "${ORANGE}Fetching latest Reth snapshot for Sepolia...${NC}"
@@ -191,45 +191,33 @@ if $SUCCESS; then
 fi
 
 if $SUCCESS; then
-  MAX_RETRIES=5
-  RETRY_DELAY=30  # seconds
-  RETRY_COUNT=0
-  SUCCESS_DOWNLOAD=false
+  echo -e "${ORANGE}• Downloading and extracting snapshot (streaming)...${NC}"
 
-  while $SUCCESS && [ "$RETRY_COUNT" -lt "$MAX_RETRIES" ]; do
-    echo -e "${ORANGE}Attempt $((RETRY_COUNT+1)) of $MAX_RETRIES to download and extract snapshot...${NC}"
+  # Clean out previous contents
+  rm -rf ./*
 
-    # Clean out previous contents before each attempt
-    rm -rf ./*
-
-    if command -v pv >/dev/null 2>&1 && [ -n "$SNAPSHOT_SIZE" ]; then
-      curl -sS -L --retry 5 --retry-delay 2 --continue-at - "$SNAPSHOT_URL" | \
-      pv -pterb -s "$SNAPSHOT_SIZE" | tar -I zstd -xf - && SUCCESS_DOWNLOAD=true || SUCCESS_DOWNLOAD=false
-    elif command -v pv >/dev/null 2>&1; then
-      curl -sS -L --retry 5 --retry-delay 2 --continue-at - "$SNAPSHOT_URL" | \
-      pv | tar -I zstd -xf - && SUCCESS_DOWNLOAD=true || SUCCESS_DOWNLOAD=false
-    else
-      curl -sS -L --retry 5 --retry-delay 2 --continue-at - "$SNAPSHOT_URL" | \
-      tar -I zstd -xf - && SUCCESS_DOWNLOAD=true || SUCCESS_DOWNLOAD=false
-    fi
-
-    if $SUCCESS_DOWNLOAD; then
-      echo -e "${GREEN}Snapshot downloaded and extracted successfully.${NC}"
-      break
-    else
-      echo -e "${RED}Snapshot download or extraction failed on attempt $((RETRY_COUNT+1)).${NC}"
-      ((RETRY_COUNT++))
-      if [ "$RETRY_COUNT" -lt "$MAX_RETRIES" ]; then
-        echo -e "${ORANGE}Waiting $RETRY_DELAY seconds before next attempt...${NC}"
-        sleep "$RETRY_DELAY"
-      else
-        echo -e "${RED}Reached maximum retry attempts. Please check your network or snapshot service.${NC}"
-        SUCCESS=false
-      fi
-    fi
-  done
+  # Use curl | pv | tar streaming pipeline with full progress details
+  if command -v pv >/dev/null 2>&1 && [ -n "$SNAPSHOT_SIZE" ]; then
+    echo "• Snapshot size found. Starting download with full progress details..."
+    # Use -sS to silence curl's default progress meter.
+    curl -sS -L --retry 5 --retry-delay 2 --continue-at - "$SNAPSHOT_URL" | pv -pterb -s "$SNAPSHOT_SIZE" | tar -I zstd -xf - || SUCCESS=false
+  elif command -v pv >/dev/null 2>&1; then
+    # Fallback if size couldn't be determined
+    echo "• Could not determine snapshot size. Progress bar will be limited."
+    curl -sS -L --retry 5 --retry-delay 2 --continue-at - "$SNAPSHOT_URL" | pv | tar -I zstd -xf - || SUCCESS=false
+  else
+    # Fallback if pv is not installed
+    echo "• pv not installed. No progress bar will be shown."
+    curl -sS -L --retry 5 --retry-delay 2 --continue-at - "$SNAPSHOT_URL" | tar -I zstd -xf - || SUCCESS=false
+  fi
 
   cd ../.. || true
+
+  if $SUCCESS; then
+    echo -e "${GREEN}Snapshot imported successfully.${NC}"
+  else
+    echo -e "${RED}ERROR: Snapshot download or extraction failed.${NC}"
+  fi
 fi
 
 # --- Generate JWT Secret ---
@@ -387,14 +375,14 @@ if $SUCCESS; then
   monitor_reth_sync() {
       echo "" # Add a blank line for spacing before the monitor starts.
       echo -e "${CYAN}• The node is now syncing (This screen refreshes automatically)${NC}"
-
+      
       first_run=true
 
       # Main Monitoring Loop
       while true; do
           # This trap allows the user to press Ctrl+C to skip monitoring and continue.
           trap 'echo -e "\n\n${ORANGE}Monitoring skipped by user. Continuing setup...${NC}\n"; return' INT
-
+          
           if [ "$first_run" = false ]; then
               printf "\033[5A" # Move cursor up 5 lines to overwrite the status block
           fi
