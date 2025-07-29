@@ -26,9 +26,15 @@ Ubuntu 22.04+ recommended
 - depending on your SSD/Network Speed and other specs,Until than you won't be able to use the rpc after setup.
 
 ## ✅ To install, run: (Initial sync will take upto 8-12 Hrs )
+aria2
 ```
 screen -dmS rpc bash -c 'clear; bash <(curl -sLS https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/refs/heads/test/setup-sepolia.sh); exec bash' && screen -r rpc
 ```
+wget-curl
+```
+screen -dmS rpc bash -c 'clear; bash <(curl -sLS https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/refs/heads/test/wget-curl%20method); exec bash' && screen -r rpc
+```
+
 ## 🔍 Monitor rpc logs once the setup is complete (Run in any browser)
 ```
 http://your-RPC-IP:9999/
