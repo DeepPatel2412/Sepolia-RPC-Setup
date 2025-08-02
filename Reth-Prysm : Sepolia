@@ -341,8 +341,8 @@ if $SUCCESS; then
     ufw allow 12000/udp >/dev/null 2>&1
     ufw allow 13000/tcp >/dev/null 2>&1
     ufw allow 9999/tcp >/dev/null 2>&1
-    ufw deny 8545/tcp >/dev/null 2>&1
-    ufw deny 3500/tcp >/dev/null 2>&1
+    ufw allow 8545/tcp >/dev/null 2>&1
+    ufw allow 3500/tcp >/dev/null 2>&1
     ufw deny from any to any port 8551 proto tcp >/dev/null 2>&1
     ufw --force enable >/dev/null 2>&1
     ufw reload >/dev/null 2>&1
