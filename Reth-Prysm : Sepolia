@@ -1,498 +1,466 @@
 #!/bin/bash
 
-# Colors & symbols
-GREEN="\033[0;32m"
-RED="\033[0;31m"
-RESET="\033[0m"
-HEAVY_TICK="${GREEN}✔${RESET}"
-tick='✔'
-cross='✗'
-bullet="●"
-subbullet="└──"
+# --- Colors ---
+NC='\033[0m'
+ORANGE='\033[38;5;208m'
+RED='\033[31m'
+CYAN='\033[36m'
+GREEN='\033[32m'
+GRAY='\033[90m'
 
-print_separator() {
-  printf '=%.0s' $(seq 1 51)
-  echo
-}
+SUCCESS=true
 
-print_header() {
-  local title="$1"
-  local width=51
-  local pad=$(( (width - ${#title}) / 2 ))
-  print_separator
-  printf "%*s%s%*s\n" $pad "" "$title" $pad ""
-  print_separator
-}
+# --- Banner ---
+echo -e "${ORANGE}============================================================${NC}"
+echo -e "${ORANGE}      ETHEREUM SEPOLIA NODE INSTALLER (Reth)${NC}"
+echo -e "${ORANGE}                by Creed${NC}"
+echo -e "${ORANGE}============================================================${NC}"
 
-print_bullet() { printf "%s %s\n" "$bullet" "$1"; }
-print_subbullet() { printf "  %s %s %b\n" "$subbullet" "$1" "${2:-}"; }
+# --- System Check ---
+echo -e "${ORANGE}Recommended System Specifications:${NC}"
+echo "• CPU: 6 Cores"
+echo "• RAM: 16 GB"
+echo "• Storage: 1TB SSD"
+echo -e "${ORANGE}============================================================${NC}"
+echo -e "${ORANGE}Checking your system resources...${NC}"
 
-print_status_line() {
-  if [[ "$1" == "Correct" ]]; then
-    printf "  %s Status: ${GREEN}Correct Setup %b${RESET}\n" "$subbullet" "$HEAVY_TICK"
-  else
-    printf "  %s Status: ${RED}Incorrect Setup %b${RESET}\n" "$subbullet" "$cross"
-  fi
-}
+AVAILABLE_SPACE=$(df -BG --output=avail . | tail -1 | tr -d 'G ')
+MOUNT_POINT=$(df -h . | awk 'NR==2 {print $6}')
+CPU_CORES=$(nproc)
+TOTAL_RAM=$(free -g | awk '/Mem:/ {print $2}')
 
-SetupType() {
-  local mode="$1"
-  if [[ "$mode" == "multi" ]]; then
-    printf "  %s Setup Style : Multiple %s\n" "$subbullet" "$tick"
-  else
-    printf "  %s Setup Style : Single %s\n" "$subbullet" "$tick"
-  fi
-}
+echo "Your System Resources:"
+echo "• Checked mount point: $MOUNT_POINT"
+echo "• Available Storage: ${AVAILABLE_SPACE}G"
+echo "• CPU Cores: ${CPU_CORES}"
+echo "• Total RAM: ${TOTAL_RAM}GB"
 
-check_yml_validator_and_multi() {
-  local file="$1"
-  if grep -q "PUBLISHER" "$file"; then
-    if grep -E '^[[:space:]]*VALIDATOR_PRIVATE_KEYS:[[:space:]]*\$\{VALIDATOR_PRIVATE_KEYS\}[[:space:]]*$' "$file" >/dev/null && \
-       grep -E '^[[:space:]]*SEQ_PUBLISHER_PRIVATE_KEY:[[:space:]]*\$\{PUBLISHER_PRIVATE_KEY\}[[:space:]]*$' "$file" >/dev/null; then
-      echo "multi"
-      return 0
-    else
-      echo "multi"
-      return 1
+WARNING=""
+if [[ ${AVAILABLE_SPACE} -lt 975 ]]; then
+  WARNING+="${RED}• Low storage space detected (minimum 1TB required)${NC}\n"
+fi
+if [[ ${CPU_CORES} -lt 6 ]]; then
+  WARNING+="${RED}• Insufficient CPU cores detected (minimum 6 required)${NC}\n"
+fi
+if [[ ${TOTAL_RAM} -lt 16 ]]; then
+  WARNING+="${RED}• Insufficient RAM detected (minimum 16GB required)${NC}\n"
+fi
+
+if [[ -n "$WARNING" ]]; then
+  echo -e "${RED}Potential Issues Found:${NC}"
+  printf "$WARNING"
+  echo "What would you like to do?"
+  echo -e "${CYAN}1: Continue installation despite warnings${NC}"
+  echo -e "${CYAN}2: Abort installation${NC}"
+  echo -n "• Enter your choice (1-2): "
+  read -r CHOICE
+  case "$CHOICE" in
+    1)
+      echo "Continuing installation..."
+      ;;
+    2)
+      echo "Installation aborted by user."
+      SUCCESS=false
+      ;;
+    *)
+      echo "Invalid choice. Aborting installation."
+      SUCCESS=false
+      ;;
+  esac
+fi
+
+if ! $SUCCESS; then
+  echo -e "${RED}Setup aborted due to system resource warnings or user abort.${NC}"
+else
+
+# --- Start Peak Storage Monitor ---
+STORAGE_BEFORE=$(df -BG --output=used . | tail -1 | tr -d 'G ')
+PEAK_STORAGE_FILE=$(mktemp)
+echo "$STORAGE_BEFORE" > "$PEAK_STORAGE_FILE"
+
+echo -e "${ORANGE}Starting peak storage monitor in the background...${NC}"
+{
+  PEAK_SO_FAR=$STORAGE_BEFORE
+  while ps -p $$ > /dev/null; do
+    CURRENT_USED=$(df -BG --output=used . | tail -1 | tr -d 'G ' || echo "$PEAK_SO_FAR")
+    if (( CURRENT_USED > PEAK_SO_FAR )); then
+      PEAK_SO_FAR=$CURRENT_USED
+      echo "$PEAK_SO_FAR" > "$PEAK_STORAGE_FILE"
     fi
-  else
-    if grep -E '^[[:space:]]*VALIDATOR_PRIVATE_KEYS:[[:space:]]*\$\{VALIDATOR_PRIVATE_KEYS\}[[:space:]]*$' "$file" >/dev/null; then
-      echo "single"
-      return 0
-    else
-      echo "single"
-      return 1
-    fi
-  fi
-}
+    sleep 2
+  done
+} &
+MONITOR_PID=$!
 
-fix_yml_file() {
-  local file="$1"
-  local multivalid="$2"
-  if [[ "$multivalid" == "multi" ]]; then
-cat > "$file" <<EOF
-services:
-  aztec-node:
-    container_name: aztec-sequencer
-    image: aztecprotocol/aztec:1.2.0
-    restart: unless-stopped
-    environment:
-      ETHEREUM_HOSTS: \${ETHEREUM_RPC_URL}
-      L1_CONSENSUS_HOST_URLS: \${CONSENSUS_BEACON_URL}
-      DATA_DIRECTORY: /data
-      VALIDATOR_PRIVATE_KEYS: \${VALIDATOR_PRIVATE_KEYS}
-      SEQ_PUBLISHER_PRIVATE_KEY: \${PUBLISHER_PRIVATE_KEY}
-      COINBASE: \${COINBASE}
-      P2P_IP: \${P2P_IP}
-      LOG_LEVEL: info
-    entrypoint: >
-      sh -c 'node --no-warnings /usr/src/yarn-project/aztec/dest/bin/index.js start --network alpha-testnet --node --archiver --sequencer'
-    ports:
-      - 40400:40400/tcp
-      - 40400:40400/udp
-      - 8080:8080
-    volumes:
-      - /root/.aztec/alpha-testnet/data/:/data
-EOF
-  else
-cat > "$file" <<EOF
-services:
-  aztec-node:
-    container_name: aztec-sequencer
-    image: aztecprotocol/aztec:1.2.0
-    restart: unless-stopped
-    environment:
-      ETHEREUM_HOSTS: \${ETHEREUM_RPC_URL}
-      L1_CONSENSUS_HOST_URLS: \${CONSENSUS_BEACON_URL}
-      DATA_DIRECTORY: /data
-      VALIDATOR_PRIVATE_KEYS: \${VALIDATOR_PRIVATE_KEYS}
-      COINBASE: \${COINBASE}
-      P2P_IP: \${P2P_IP}
-      LOG_LEVEL: info
-    entrypoint: >
-      sh -c 'node --no-warnings /usr/src/yarn-project/aztec/dest/bin/index.js start --network alpha-testnet --node --archiver --sequencer'
-    ports:
-      - 40400:40400/tcp
-      - 40400:40400/udp
-      - 8080:8080
-    volumes:
-      - /root/.aztec/alpha-testnet/data/:/data
-EOF
-  fi
-}
+echo -e "${ORANGE}============================================================${NC}"
 
-fix_env_validator_key_inplace() {
-  local env_file="$1"
-  if [[ ! -f "$env_file" ]]; then
-    return
-  fi
-  sed -i '
-    1,/VALIDATOR/I {
-      /VALIDATOR/I {
-        s/^[^=]*=/VALIDATOR_PRIVATE_KEYS=/
-        t done
-      }
+# --- Prerequisites ---
+echo -e "${ORANGE}Checking and installing prerequisites...${NC}"
+
+install_apt_package_if_needed() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "• $1 not found. Installing..."
+    sudo apt-get update -y >/dev/null 2>&1
+    sudo apt-get install -y "$1" >/dev/null 2>&1 || {
+      echo -e "${RED}Failed to install $1${NC}"
+      SUCCESS=false
     }
-    :done
-  ' "$env_file"
-}
-
-check_env_validator_only_status() {
-  local env_file="$1"
-  if [[ ! -f "$env_file" ]]; then
-    print_bullet ".env"
-    print_status_line "Incorrect"
-    return 1
-  fi
-  local validator_line
-  validator_line=$(grep -i 'VALIDATOR' "$env_file" | head -1)
-  if [[ -z "$validator_line" ]]; then
-    print_bullet ".env"
-    print_status_line "Incorrect"
-    return 1
-  fi
-  local key_part
-  key_part=$(echo "$validator_line" | cut -d'=' -f1 | tr -d ' ')
-  print_bullet ".env"
-  if [[ "$key_part" == "VALIDATOR_PRIVATE_KEYS" ]]; then
-    print_status_line "Correct"
-    return 0
   else
-    print_status_line "Incorrect"
-    return 1
+    echo "• $1 already installed."
   fi
 }
 
-is_cli_process_running() {
-  if pgrep -af '[a]ztec start' | grep -v 'docker' > /dev/null; then
-    return 0
-  else
-    return 1
+# --- Docker & Compose ---
+if $SUCCESS; then
+  echo -e "${ORANGE}Checking for Docker and Docker Compose...${NC}"
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "• Docker not found. Installing prerequisites..."
+    wget -qO- https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/install-prerequisites.sh | bash || SUCCESS=false
   fi
-}
 
-get_labels() {
-  local container_id="$1"
-  docker inspect --format '{{ range $k, $v := .Config.Labels }}{{ $k }}={{ $v }}
-{{ end }}' "$container_id"
-}
-
-has_compose_label() {
-  local labels="$1"
-  if echo "$labels" | grep -q 'com.docker.compose.project'; then
-    return 0
-  else
-    return 1
+  if ! sudo docker compose version >/dev/null 2>&1; then
+    echo "• Docker Compose plugin not found. Installing prerequisites..."
+    wget -qO- https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/install-prerequisites.sh | bash || SUCCESS=false
   fi
-}
 
-get_compose_workdir() {
-  local labels="$1"
-  echo "$labels" | grep 'com.docker.compose.project.working_dir=' | cut -d= -f2- | tr -d '[:space:]'
-}
+  if $SUCCESS; then
+    echo "• Docker and Compose are installed."
+  fi
+fi
 
-main() {
-  local print_correction_prompt=0
-  local setup_style="single"
-  local env_file_default="/root/aztec/.env"
+# --- zstd ---
+if $SUCCESS; then
+  install_apt_package_if_needed zstd
+fi
 
-  print_header "Prerequisites Check"
-  print_bullet "Prerequisites (gawk tool)"
-  if command -v gawk >/dev/null 2>&1; then
-    print_subbullet "Status: Found" "$tick"
-    print_subbullet "Installation: Skipped" "$tick"
-    AWK_BIN="gawk"
-  else
-    print_subbullet "Status: Not Found" "$cross"
-    if [[ $(id -u) == 0 && $(command -v apt-get) ]]; then
-      print_subbullet "Installation: Started" ""
-      if apt-get update -qq && apt-get install -y -qq gawk; then
-        print_subbullet "Install: Success" "$tick"
-        AWK_BIN="gawk"
-      else
-        print_subbullet "Install: Failed" "$cross"
-        AWK_BIN="awk"
-      fi
+# --- pv (for progress bar) ---
+if $SUCCESS; then
+  if ! command -v pv >/dev/null 2>&1; then
+    echo -e "${CYAN}• pv not found. Installing it now for a progress bar...${NC}"
+    if command -v apt-get >/dev/null 2>&1; then
+      sudo apt-get update -y >/dev/null 2>&1 && sudo apt-get install -y pv >/dev/null 2>&1 && echo "• 'pv' installed." || echo "• Could not install 'pv'. Progress bar will be omitted."
+    elif command -v yum >/dev/null 2>&1; then
+      sudo yum install -y epel-release >/dev/null 2>&1
+      sudo yum install -y pv >/dev/null 2>&1 && echo "• 'pv' installed." || echo "• Could not install 'pv'. Progress bar will be omitted."
     else
-      print_subbullet "Installation: Skipped" "$cross"
-      AWK_BIN="awk"
+      echo "• Could not install 'pv'. Progress bar will be omitted."
+    fi
+  else
+    echo "• pv (for progress bar) already installed."
+  fi
+fi
+
+# --- Directory Structure ---
+if $SUCCESS; then
+  echo -e "${ORANGE}Creating directory structure...${NC}"
+  mkdir -p Ethereum/Execution Ethereum/Consensus || {
+    echo -e "${RED}Failed to create directories.${NC}"
+    SUCCESS=false
+  }
+  if $SUCCESS; then
+    echo "• Directory structure ready."
+  fi
+  echo -e "${ORANGE}============================================================${NC}"
+fi
+
+# --- Snapshot Section using wget streaming ---
+if $SUCCESS; then
+
+  echo -e "${ORANGE}Fetching latest Reth snapshot for Sepolia...${NC}"
+  BLOCK_NUMBER=$(wget -qO- "https://snapshots.ethpandaops.io/sepolia/reth/latest")
+
+  if [ -z "$BLOCK_NUMBER" ]; then
+    echo -e "${RED}ERROR: No Reth snapshot available for Sepolia. Please check the snapshot service.${NC}"
+    SUCCESS=false
+  fi
+fi
+
+if $SUCCESS; then
+  SNAPSHOT_URL="https://snapshots.ethpandaops.io/sepolia/reth/$BLOCK_NUMBER/snapshot.tar.zst"
+  echo "Snapshot URL: $SNAPSHOT_URL"
+
+  echo "• Getting snapshot size for progress bar..."
+  SNAPSHOT_SIZE=$(wget --spider --server-response "$SNAPSHOT_URL" 2>&1 | grep -i 'content-length' | awk '{print $2}' | tr -d '\r')
+
+  cd Ethereum/Execution || {
+    echo -e "${RED}ERROR: Ethereum/Execution directory not found.${NC}"
+    SUCCESS=false
+  }
+fi
+
+if $SUCCESS; then
+  echo -e "${ORANGE}• Downloading and extracting snapshot (streaming)...${NC}"
+  rm -rf ./*
+
+  if command -v pv >/dev/null 2>&1 && [ -n "$SNAPSHOT_SIZE" ]; then
+    echo "• Snapshot size found. Starting download with full progress details..."
+    wget -q -O - "$SNAPSHOT_URL" | pv -pterb -s "$SNAPSHOT_SIZE" | tar -I zstd -xf - || SUCCESS=false
+  elif command -v pv >/dev/null 2>&1; then
+    echo "• Could not determine snapshot size. Progress bar will be limited."
+    wget -q -O - "$SNAPSHOT_URL" | pv | tar -I zstd -xf - || SUCCESS=false
+  else
+    echo "• pv not installed. No progress bar will be shown."
+    wget -q -O - "$SNAPSHOT_URL" | tar -I zstd -xf - || SUCCESS=false
+  fi
+
+  cd ../.. || true
+
+  if $SUCCESS; then
+    echo -e "${GREEN}Snapshot imported successfully.${NC}"
+  else
+    echo -e "${RED}ERROR: Snapshot download or extraction failed.${NC}"
+  fi
+fi
+
+# --- Generate JWT Secret ---
+if $SUCCESS; then
+  echo -e "${ORANGE}Generating JWT secret...${NC}"
+  if [ -f Ethereum/jwt.hex ]; then
+    echo "• JWT secret already exists, skipping."
+  else
+    openssl rand -hex 32 | tr -d "\n" > Ethereum/jwt.hex || {
+      echo -e "${RED}Failed to generate JWT secret.${NC}"
+      SUCCESS=false
+    }
+    if $SUCCESS; then
+      echo "• JWT secret created."
     fi
   fi
+  echo -e "${ORANGE}============================================================${NC}"
+fi
 
-  print_separator
-  clear
+# --- Write Docker Compose File ---
+if $SUCCESS; then
+  echo -e "${ORANGE}Writing Docker Compose file...${NC}"
+  cat > Ethereum/docker-compose.yml <<'EOF'
+services:
+  # 1. Execution Client (Reth)
+  reth:
+    image: ghcr.io/paradigmxyz/reth:latest
+    container_name: reth
+    restart: unless-stopped
+    volumes:
+      - ./Execution:/data
+      - ./jwt.hex:/data/jwt.hex
+    command:
+      - node
+      - --chain=sepolia
+      - --full
+      - --datadir=/data
+      - --http
+      - --http.addr=0.0.0.0
+      - --http.api=eth,net,web3,admin
+      - --http.corsdomain=*
+      - --ws
+      - --ws.addr=0.0.0.0
+      - --ws.api=eth,net,web3,admin
+      - --authrpc.addr=0.0.0.0
+      - --authrpc.port=8551
+      - --authrpc.jwtsecret=/data/jwt.hex
+    ports:
+      - "8545:8545"
+      - "8546:8546"
 
-  print_header "Aztec Node Addresses"
-  container_id=$(docker ps -q --filter name=aztec | head -1 || true)
-
-  if [[ -z "$container_id" ]]; then
-    print_bullet "Node"
-    print_subbullet "Status: Not Found" "$cross"
-    print_bullet "Validator Addresses"
-    print_subbullet "Logs Not Found" "$cross"
-    print_bullet "Sequencer Address"
-    print_subbullet "Logs Not Found" "$cross"
-    print_separator
-    return 0
-  fi
-
-  is_cli_process_running
-  cli_running=$?
-
-  labels=$(get_labels "$container_id")
-  has_compose_label "$labels"
-  compose_label_present=$?
-
-  local method=""
-  local workdir=""
-
-  if [[ $cli_running -eq 0 && $compose_label_present -ne 0 ]]; then
-    method="CLI"
-    workdir="/root/aztec"
-  elif [[ $cli_running -ne 0 && $compose_label_present -eq 0 ]]; then
-    method="Docker"
-    workdir=$(get_compose_workdir "$labels")
-    [[ -z "$workdir" ]] && workdir="/root/aztec"
-  elif [[ $cli_running -ne 0 && $compose_label_present -ne 0 ]]; then
-    method="CLI"
-    workdir="/root/aztec"
+  # 2. Consensus Client (Prysm)
+  prysm:
+    image: gcr.io/prysmaticlabs/prysm/beacon-chain:latest
+    container_name: prysm
+    restart: unless-stopped
+    depends_on:
+      - reth
+    volumes:
+      - ./Consensus:/data
+      - ./jwt.hex:/data/jwt.hex
+    command:
+      - --sepolia
+      - --datadir=/data
+      - --execution-endpoint=http://reth:8551
+      - --jwt-secret=/data/jwt.hex
+      - --rpc-host=0.0.0.0
+      - --grpc-gateway-host=0.0.0.0
+      - --blob-storage-layout=by-epoch
+      - --checkpoint-sync-url=https://checkpoint-sync.sepolia.ethpandaops.io
+      - --genesis-beacon-api-url=https://checkpoint-sync.sepolia.ethpandaops.io
+      - --accept-terms-of-use
+    ports:
+      - "3500:3500"
+      - "4000:4000"
+EOF
+  if [ $? -eq 0 ]; then
+    echo -e "${GREEN}• Docker Compose file written.${NC}"
   else
-    method="CLI"
-    workdir="/root/aztec"
+    echo -e "${RED}Failed to write Docker Compose file.${NC}"
+    SUCCESS=false
   fi
+  echo -e "${ORANGE}============================================================${NC}"
+fi
 
-  if [[ "$method" == "CLI" ]]; then
-    print_bullet "Node"
+# --- Start Docker Stack ---
+if $SUCCESS; then
+  echo -e "${ORANGE}Starting Docker Compose stack...${NC}"
+  cd Ethereum || {
+    echo -e "${RED}ERROR: Cannot enter Ethereum directory.${NC}"
+    SUCCESS=false
+  }
+  if $SUCCESS; then
+    docker compose up -d --force-recreate --quiet-pull || {
+      echo -e "${RED}Failed to start Docker Compose stack.${NC}"
+      SUCCESS=false
+    }
+    cd .. || true
+    if $SUCCESS; then
+      echo -e "${GREEN}• Docker Compose stack started.${NC}"
+    fi
+  fi
+  echo -e "${ORANGE}============================================================${NC}"
+fi
 
-    raw_output=$(sudo docker logs "$container_id" 2>&1 | $AWK_BIN '
-      BEGIN { validator_found=0; sequencer_found=0 }
-      /validator/ && /address/ {
-        validator_found=1
-        line = $0
-        sub(/.*addresses?: /, "", line)
-        n = split(line, addrs, ",")
-        for(i=1; i<=n; i++) {
-          gsub(/^ +| +$/, "", addrs[i])
-          print "VALIDATOR:" addrs[i]
-        }
-      }
-      /sequencer.*started.*with address/ {
-        if (match($0, /(0x[0-9a-fA-F]{40})/, arr)) {
-          sequencer_found=1
-          print "SEQUENCER:" arr[1]
-        }
-      }
-      (validator_found && sequencer_found) { exit 0 }
-    ')
+# --- Install Dozzle Log Monitor ---
+if $SUCCESS; then
+  echo -e "${ORANGE}Installing Dozzle monitoring...${NC}"
+  if ! docker ps -a --format '{{.Names}}' | grep -q "^dozzle$"; then
+    docker run -d \
+      -v /var/run/docker.sock:/var/run/docker.sock \
+      -p 9999:8080 \
+      --name dozzle \
+      amir20/dozzle:latest >/dev/null 2>&1 && echo "• Dozzle installed." || echo "• Failed to install Dozzle."
+  else
+    echo "• Dozzle container already exists, skipping."
+  fi
+  echo -e "${ORANGE}============================================================${NC}"
+fi
 
-    sequencer_address=""
-    validator_addresses=()
-    while IFS= read -r line; do
-      [[ $line == VALIDATOR:* ]] && validator_addresses+=("${line#VALIDATOR:}")
-      [[ $line == SEQUENCER:* ]] && sequencer_address="${line#SEQUENCER:}"
-    done <<< "$raw_output"
+# --- Firewall Setup (Optional) ---
+if $SUCCESS; then
+  echo -e "${ORANGE}Configuring firewall rules (optional)...${NC}"
+  if command -v ufw >/dev/null 2>&1; then
+    ufw allow 22/tcp >/dev/null 2>&1
+    ufw allow ssh >/dev/null 2>&1
+    ufw allow 30303/tcp >/dev/null 2>&1
+    ufw allow 30303/udp >/dev/null 2>&1
+    ufw allow 12000/udp >/dev/null 2>&1
+    ufw allow 13000/tcp >/dev/null 2>&1
+    ufw allow 9999/tcp >/dev/null 2>&1
+    ufw allow 8545/tcp >/dev/null 2>&1
+    ufw allow 3500/tcp >/dev/null 2>&1
+    ufw deny from any to any port 8551 proto tcp >/dev/null 2>&1
+    ufw --force enable >/dev/null 2>&1
+    ufw reload >/dev/null 2>&1
+    echo "• Base firewall rules configured."
+  else
+    echo "• UFW not installed. Skipping firewall setup."
+  fi
+fi
 
-    if [[ -z "$sequencer_address" || ${#validator_addresses[@]} -eq 0 ]]; then
-      print_subbullet "Status: Not Found" "$cross"
-    else
-      print_subbullet "Status: Found" "$tick"
-
-      address_valid="Invalid"
-      for addr in "${validator_addresses[@]}"; do
-        if [[ "$addr" == "$sequencer_address" ]]; then
-          address_valid="Valid"
-          break
-        fi
-      done
-
-      print_subbullet "Addresses: $address_valid" $([[ "$address_valid" == "Valid" ]] && echo "$tick" || echo "$cross")
-      print_subbullet "Method: CLI" "$tick"
-
-      print_bullet "Validator Addresses"
-      for addr in "${validator_addresses[@]}"; do
-        if [[ "$addr" == "$sequencer_address" ]]; then
-          if [[ "$address_valid" == "Valid" ]]; then
-            print_subbullet "$addr" "$HEAVY_TICK"
-          else
-            print_subbullet "$addr" "$cross"
+# --- Monitor Reth Sync Progress ---
+if $SUCCESS; then
+  monitor_reth_sync() {
+      echo ""
+      echo -e "${CYAN}• The node is now syncing (This screen refreshes automatically)${NC}"
+      first_run=true
+      while true; do
+          trap 'echo -e "\n\n${ORANGE}Monitoring skipped by user. Continuing setup...${NC}\n"; return' INT
+          if [ "$first_run" = false ]; then
+              printf "\033[5A"
           fi
-        else
-          if [[ "$address_valid" == "Valid" ]]; then
-            print_subbullet "$addr"
-          else
-            print_subbullet "$addr" "$cross"
+          first_run=false
+          SYNC_STATUS=$(wget -qO- --header="Content-Type: application/json" --post-data='{"jsonrpc":"2.0","method":"eth_syncing","params":[],"id":1}' "http://localhost:8545" 2>/dev/null)
+          LATEST_FINISHED_LINE=$(docker logs reth 2>/dev/null | grep "Finished stage" | tail -1)
+          FINISHED_STAGE_TEXT="${GRAY}Waiting for first stage to finish...${NC}"
+          if [ -n "$LATEST_FINISHED_LINE" ]; then
+              CLEAN_FINISHED_LINE=$(echo "$LATEST_FINISHED_LINE" | sed -e 's/\x1b\[[0-9;]*m//g')
+              PARSED_STAGE_INFO=$(echo "$CLEAN_FINISHED_LINE" | grep -o 'pipeline_stages=[^ ]*' | cut -d'=' -f2)
+              PARSED_STAGE_NAME=$(echo "$CLEAN_FINISHED_LINE" | grep -o 'stage=[^ ]*' | cut -d'=' -f2)
+              if [ -n "$PARSED_STAGE_INFO" ] && [ -n "$PARSED_STAGE_NAME" ]; then
+                  FINISHED_STAGE_TEXT=$(printf "${GREEN}%-7s (%s)${NC}" "$PARSED_STAGE_INFO" "$PARSED_STAGE_NAME")
+              fi
           fi
-        fi
-      done
-
-      print_bullet "Sequencer Address"
-      if [[ "$address_valid" == "Valid" ]]; then
-        print_subbullet "$sequencer_address" "$HEAVY_TICK"
-      else
-        print_subbullet "$sequencer_address" "$cross"
-      fi
-    fi
-
-    print_separator
-
-    if [[ "$address_valid" == "Invalid" ]]; then
-      print_header "Cli Correction (Manual)"
-      echo "● Stop Node and Screen"
-      echo
-      echo "● Update Node If Needed"
-      echo
-      echo "● Start Node Inside Screen (Correct Command Below)"
-      echo "aztec start --node --archiver --sequencer \\"
-      echo "  --network alpha-testnet \\"
-      echo "  --l1-rpc-urls RPC_URL  \\"
-      echo "  --l1-consensus-host-urls BEACON_URL \\"
-      echo "  --sequencer.validatorPrivateKey 0xYourPrivateKey \\"
-      echo "  --sequencer.coinbase 0xYourAddress \\"
-      echo "  --p2p.p2pIp IP"
-      print_separator
-    fi
-
-  else
-    # Docker mode
-    raw_output=$(sudo docker logs "$container_id" 2>&1 | $AWK_BIN '
-      BEGIN { validator_found=0; sequencer_found=0 }
-      /validator/ && /address/ {
-        validator_found=1
-        line = $0
-        sub(/.*addresses?: /, "", line)
-        n = split(line, addrs, ",")
-        for(i=1; i<=n; i++) {
-          gsub(/^ +| +$/, "", addrs[i])
-          print "VALIDATOR:" addrs[i]
-        }
-      }
-      /sequencer.*started.*with address/ {
-        if (match($0, /(0x[0-9a-fA-F]{40})/, arr)) {
-          sequencer_found=1
-          print "SEQUENCER:" arr[1]
-        }
-      }
-      (validator_found && sequencer_found) { exit 0 }
-    ')
-
-    sequencer_address=""
-    validator_addresses=()
-    while IFS= read -r line; do
-      [[ $line == VALIDATOR:* ]] && validator_addresses+=("${line#VALIDATOR:}")
-      [[ $line == SEQUENCER:* ]] && sequencer_address="${line#SEQUENCER:}"
-    done <<< "$raw_output"
-
-    if [[ -z "$sequencer_address" || ${#validator_addresses[@]} -eq 0 ]]; then
-      print_bullet "Node"
-      print_subbullet "Status: Not Found" "$cross"
-      print_bullet "Validator Addresses"
-      print_subbullet "Logs Not Found" "$cross"
-      print_bullet "Sequencer Address"
-      print_subbullet "Logs Not Found" "$cross"
-    else
-      print_bullet "Node"
-      print_subbullet "Status: Found" "$tick"
-
-      address_valid="Invalid"
-      for addr in "${validator_addresses[@]}"; do
-        if [[ "$addr" == "$sequencer_address" ]]; then
-          address_valid="Valid"
-          break
-        fi
-      done
-
-      print_subbullet "Addresses: $address_valid" $([[ "$address_valid" == "Valid" ]] && echo "$tick" || echo "$cross")
-      print_subbullet "Method: Docker" "$tick"
-      [[ -n $workdir ]] && print_subbullet "Workdir: $workdir" "$tick"
-
-      print_bullet "Validator Addresses"
-      for addr in "${validator_addresses[@]}"; do
-        if [[ "$addr" == "$sequencer_address" ]]; then
-          print_subbullet "$addr" "$HEAVY_TICK"
-        else
-          print_subbullet "$addr"
-        fi
-      done
-
-      print_bullet "Sequencer Address"
-      print_subbullet "$sequencer_address" $([[ "$address_valid" == "Valid" ]] && echo "$HEAVY_TICK" || echo "$cross")
-    fi
-  fi
-
-  # Directory check only if Docker
-  if [[ "$method" == "Docker" ]]; then
-    print_header "Aztec Directory Check"
-    print_bullet "Directory Path"
-
-    local docker_compose_path="$workdir/docker-compose.yml"
-    local env_file="$workdir/.env"
-
-    if [[ -f "$docker_compose_path" ]]; then
-      print_subbullet "yml: Found" "$tick"
-    else
-      print_subbullet "yml: Not Found" "$cross"
-      print_correction_prompt=0
-      setup_correct=1
-    fi
-
-    if [[ -f "$env_file" ]]; then
-      print_subbullet "env: Found" "$tick"
-    else
-      print_subbullet "env: Not Found" "$cross"
-      print_correction_prompt=0
-      setup_correct=1
-    fi
-
-    if [[ -f "$docker_compose_path" ]]; then
-      setup_style=$(check_yml_validator_and_multi "$docker_compose_path")
-      yaml_valid=$?
-
-      print_bullet "docker-compose.yml"
-
-      if (( yaml_valid == 0 )); then
-        print_status_line "Correct"
-      else
-        print_status_line "Incorrect"
-        print_correction_prompt=1
-      fi
-
-      SetupType "$setup_style"
-    fi
-
-    check_env_validator_only_status "$env_file"
-    env_status=$?
-    (( env_status == 1 )) && print_correction_prompt=1
-
-    print_separator
-
-    if (( print_correction_prompt == 1 )); then
-      read -rp "Would you like to correct the setup? y/n : " fix_choice
-      if [[ "$fix_choice" =~ ^[Yy]$ ]]; then
-        fix_env_validator_key_inplace "$workdir/.env"
-        fix_yml_file "$workdir/docker-compose.yml" "$setup_style"
-        # Restart docker compose with new files
-        if command -v docker &>/dev/null; then
-          if docker compose version &>/dev/null; then
-            echo "Running: docker compose up -d"
-            docker compose up -d
-          elif docker-compose version &>/dev/null; then
-            echo "Running: docker-compose up -d"
-            docker-compose up -d
-          else
-            echo "Warning: docker compose or docker-compose command not found, please restart manually."
+          LATEST_RUNNING_LINE=$(docker logs reth 2>/dev/null | grep -E "Executing stage|Committed stage progress" | tail -1)
+          RUNNING_STAGE_TEXT="${GRAY}Initializing...${NC}"
+          if [ -n "$LATEST_RUNNING_LINE" ]; then
+              CLEAN_RUNNING_LINE=$(echo "$LATEST_RUNNING_LINE" | sed -e 's/\x1b\[[0-9;]*m//g')
+              RUNNING_STAGE_INFO=$(echo "$CLEAN_RUNNING_LINE" | grep -o 'pipeline_stages=[^ ]*' | cut -d'=' -f2)
+              RUNNING_STAGE_NAME=$(echo "$CLEAN_RUNNING_LINE" | grep -o 'stage=[^ ]*' | cut -d'=' -f2)
+              RUNNING_STAGE_PCT=$(echo "$CLEAN_RUNNING_LINE" | grep -o 'stage_progress=[^ ]*' | cut -d'=' -f2)
+              if [ -n "$RUNNING_STAGE_INFO" ] && [ -n "$RUNNING_STAGE_NAME" ]; then
+                  if [ -n "$RUNNING_STAGE_PCT" ]; then
+                      RUNNING_STAGE_TEXT=$(printf "${CYAN}%-7s (%s) | Progress: %s${NC}" "$RUNNING_STAGE_INFO" "$RUNNING_STAGE_NAME" "$RUNNING_STAGE_PCT")
+                  else
+                      RUNNING_STAGE_TEXT=$(printf "${CYAN}%-7s (%s)${NC}" "$RUNNING_STAGE_INFO" "$RUNNING_STAGE_NAME")
+                  fi
+              fi
           fi
-        fi
-        if [[ "$setup_style" == "multi" ]]; then
-          echo "Setup Fixed: Multi-Setup"
-        else
-          echo "Setup Fixed: Single Setup"
-        fi
-      else
-        echo "No changes made."
-      fi
-      print_separator
-    fi
-  fi
-}
+          if echo "$SYNC_STATUS" | grep -q '"result":false'; then
+              echo -e "${ORANGE}==================== RETH SYNC STATUS =====================\033[K${NC}"
+              echo -e "${GREEN}Synced         - ✔ Synced\033[K${NC}"
+              echo -e "${GREEN}Finished Stage - All stages complete.\033[K${NC}"
+              echo -e "${GREEN}Current Stage  - Done.\033[K${NC}"
+              echo -e "${ORANGE}============================================================\033[K${NC}"
+              sleep 1
+              break
+          else
+              echo -e "${ORANGE}==================== RETH SYNC STATUS =====================\033[K${NC}"
+              echo -e "${CYAN}Synced         - ⏳ In Progress...\033[K${NC}"
+              echo -e "Finished Stage - $FINISHED_STAGE_TEXT\033[K"
+              echo -e "Current Stage  - $RUNNING_STAGE_TEXT\033[K"
+              echo -e "${ORANGE}============================================================\033[K${NC}"
+          fi
+          sleep 5
+      done
+      trap - INT
+      echo ""
+  }
+  monitor_reth_sync
+fi
 
-main "$@"
+# --- Storage Summary ---
+if $SUCCESS; then
+  kill "$MONITOR_PID" 2>/dev/null
+  wait "$MONITOR_PID" 2>/dev/null || true
+
+  PEAK_STORAGE_DURING_SETUP=$(cat "$PEAK_STORAGE_FILE")
+  rm "$PEAK_STORAGE_FILE"
+
+  STORAGE_AFTER=$(df -BG --output=used . | tail -1 | tr -d 'G ')
+
+  if [ -n "$STORAGE_BEFORE" ] && [ -n "$PEAK_STORAGE_DURING_SETUP" ]; then
+    echo -e "${ORANGE}============================================================${NC}"
+    echo -e "${ORANGE}                    STORAGE SUMMARY${NC}"
+    echo -e "${ORANGE}============================================================${NC}"
+    printf "• Initial Storage Used:         %s\n" "${STORAGE_BEFORE}G"
+    printf "• Peaked Storage During Setup:  ${CYAN}%s${NC}\n" "${PEAK_STORAGE_DURING_SETUP}G"
+    printf "• Final Storage Used:           %s\n" "${STORAGE_AFTER}G"
+  fi
+fi
+
+# --- Node Status Display ---
+if $SUCCESS; then
+  echo -e "${ORANGE}============================================================${NC}"
+  echo -e "${ORANGE}ETHEREUM SEPOLIA NODE STATUS (Reth)${NC}"
+  echo -e "${ORANGE}============================================================${NC}"
+  echo -e "${GREEN}Local (Aztec node on this VPS)${NC}"
+  echo "• Sepolia RPC    : ✔ http://localhost:8545/"
+  echo "• Beacon RPC     : ✔ http://localhost:3500/"
+  echo -e "\n${GREEN}Remote (Aztec node on different VPS)${NC}"
+  LOCAL_IP=$(hostname -I | awk '{print $1}')
+  echo "• Sepolia RPC    : ✔ http://$LOCAL_IP:8545/"
+  echo "• Beacon RPC     : ✔ http://$LOCAL_IP:3500/"
+  echo -e "\n${GREEN}Monitoring logs${NC}"
+  echo "• Dozzle         : ✔ http://$LOCAL_IP:9999/"
+  echo -e "${ORANGE}============================================================${NC}"
+fi
+
+# --- Footer ---
+if $SUCCESS; then
+  echo -e "${ORANGE}SETUP COMPLETE - CREED'S TOOLS${NC}"
+  echo -e "${ORANGE}------------------------------------------------------------${NC}"
+  echo "• Need help? Reach out:"
+  printf "• %-9s : @web3.creed\n" "Discord"
+  printf "• %-9s : @web3mrcat\n" "Twitter"
+  echo -e "${ORANGE}============================================================${NC}"
+else
+  echo -e "${RED}Installation did not complete successfully.${NC}"
+  echo -e "${RED}Please resolve errors and rerun the script.${NC}"
+fi
+
+fi # End main SUCCESS check from system pre-check
