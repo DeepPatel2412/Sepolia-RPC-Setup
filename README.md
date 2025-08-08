@@ -27,6 +27,7 @@ Ubuntu 22.04+ recommended
 
 ## ✅ To install, run: (Initial sync will take upto 8-12 Hrs )
 ```
+sudo su
 sudo apt install screen
 screen -dmS rpc bash -c 'clear; bash <(curl -sLS https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/refs/heads/main/Reth-Prysm%20%3A%20Sepolia); exec bash' && screen -r rpc
 ```
