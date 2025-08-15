@@ -1,5 +1,5 @@
 #!/bin/bash
-
+clear
 # --- Colors ---
 NC='\033[0m'
 ORANGE='\033[38;5;208m'
@@ -97,18 +97,35 @@ echo -e "${ORANGE}============================================================${
 # --- Prerequisites ---
 echo -e "${ORANGE}Checking and installing prerequisites...${NC}"
 
-install_apt_package_if_needed() {
-  if ! command -v "$1" >/dev/null 2>&1; then
-    echo "• $1 not found. Installing..."
-    sudo apt-get update -y >/dev/null 2>&1
-    sudo apt-get install -y "$1" >/dev/null 2>&1 || {
-      echo -e "${RED}Failed to install $1${NC}"
-      SUCCESS=false
-    }
+# --- All apt-based tools (zstd, pv, ufw, wget) ---
+echo -e "${CYAN}• Checking and installing required system tools...${NC}"
+if command -v apt-get >/dev/null 2>&1; then
+  sudo apt-get update -y >/dev/null 2>&1
+  if ! command -v zstd >/dev/null 2>&1; then
+    sudo apt-get install -y zstd >/dev/null 2>&1 || echo -e "${RED}• Failed to install zstd.${NC}"
   else
-    echo "• $1 already installed."
+    echo "• zstd already installed."
   fi
-}
+  if ! command -v pv >/dev/null 2>&1; then
+    sudo apt-get install -y pv >/dev/null 2>&1 && echo "• 'pv' installed." || echo "• Could not install 'pv'. Progress bar may be omitted."
+  else
+    echo "• pv (for progress bar) already installed."
+  fi
+  if ! command -v ufw >/dev/null 2>&1; then
+    sudo apt-get install -y ufw >/dev/null 2>&1 && echo "• 'ufw' installed." || echo -e "${RED}• Failed to install 'ufw'. Firewall setup will be skipped.${NC}"
+  else
+    echo "• ufw already installed."
+  fi
+  if ! command -v wget >/dev/null 2>&1; then
+    sudo apt-get install -y wget >/dev/null 2>&1 || echo -e "${RED}• Failed to install wget.${NC}"
+  else
+    echo "• wget already installed."
+  fi
+  echo "• All apt-based prerequisites checked and installed."
+elif command -v yum >/dev/null 2>&1; then
+  sudo yum install -y epel-release >/dev/null 2>&1
+  sudo yum install -y zstd pv ufw wget >/dev/null 2>&1 && echo "• All yum-based prerequisites checked and installed." || echo -e "${RED}• Failed to install one or more system packages.${NC}"
+fi
 
 # --- Docker & Compose ---
 if $SUCCESS; then
@@ -125,28 +142,6 @@ if $SUCCESS; then
 
   if $SUCCESS; then
     echo "• Docker and Compose are installed."
-  fi
-fi
-
-# --- zstd ---
-if $SUCCESS; then
-  install_apt_package_if_needed zstd
-fi
-
-# --- pv (for progress bar) ---
-if $SUCCESS; then
-  if ! command -v pv >/dev/null 2>&1; then
-    echo -e "${CYAN}• pv not found. Installing it now for a progress bar...${NC}"
-    if command -v apt-get >/dev/null 2>&1; then
-      sudo apt-get update -y >/dev/null 2>&1 && sudo apt-get install -y pv >/dev/null 2>&1 && echo "• 'pv' installed." || echo "• Could not install 'pv'. Progress bar will be omitted."
-    elif command -v yum >/dev/null 2>&1; then
-      sudo yum install -y epel-release >/dev/null 2>&1
-      sudo yum install -y pv >/dev/null 2>&1 && echo "• 'pv' installed." || echo "• Could not install 'pv'. Progress bar will be omitted."
-    else
-      echo "• Could not install 'pv'. Progress bar will be omitted."
-    fi
-  else
-    echo "• pv (for progress bar) already installed."
   fi
 fi
 
