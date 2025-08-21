@@ -5,45 +5,49 @@ run_ufw_menu() {
     echo "Choose Action:"
     echo "1) Add IP"
     echo "2) Remove IP"
-    read -p "Choice (1/2): " ACTION
-    [[ $ACTION == 1 || $ACTION == 2 ]] && break
+    echo -n "Choice (1/2): "
+    read -r ACTION
+    [[ "$ACTION" == "1" || "$ACTION" == "2" ]] && break
     echo "Invalid. Try again (attempts left: $((2-retry)))"
     printf '%.0s─' {1..50}; echo
   done
-
-  [[ $ACTION != 1 && $ACTION != 2 ]] && { echo "Too many invalid attempts. Stopping."; printf '%.0s─' {1..50}; echo; return; }
-
+  [[ "$ACTION" != "1" && "$ACTION" != "2" ]] && { echo "Too many invalid attempts. Stopping."; printf '%.0s─' {1..50}; echo; return; }
   printf '%.0s─' {1..50}; echo
-  read -p "IP address: " IP
-  read -p "Port(s) (comma/space separated): " PORTS
-
-  # Convert to array and validate ports
+  echo -n "IP address: "
+  read -r IP
+  echo -n "Port(s) (comma/space separated): "
+  read -r PORTS
   declare -a VALID_PORTS
-  for port in $(echo $PORTS | tr ', ' ' '); do
+  for port in $(echo "$PORTS" | tr ', ' ' '); do
     if [[ $port =~ ^[0-9]+(-[0-9]+)?$ ]] && [ ${port%-*} -ge 1 ] && [ ${port%-*} -le 65535 ] && ([[ ! $port =~ - ]] || [ ${port#*-} -ge 1 ] && [ ${port#*-} -le 65535 ]); then
       VALID_PORTS+=("$port")
     else
       echo "Ignored invalid port: $port"
     fi
   done
+  [[ ${#VALID_PORTS[@]} -eq 0 ]] && { echo "No valid ports. Aborted."; printf '%.0s─' {1..50}; echo; return; }
   printf '%.0s─' {1..50}; echo
-
-  if [ ${#VALID_PORTS[@]} -eq 0 ]; then
-    echo "No valid ports. Aborted."
-    printf '%.0s─' {1..50}; echo
-    return
-  fi
-
-  if [[ $ACTION == 1 ]]; then
+  if [[ "$ACTION" == "1" ]]; then
     for port in "${VALID_PORTS[@]}"; do
-      sudo ufw allow from $IP to any port $port proto tcp
+      sudo ufw delete deny "$port"/tcp > /dev/null 2>&1
+      sudo ufw delete deny "$port"/udp > /dev/null 2>&1
+      sudo ufw delete allow from "$IP" to any port "$port" proto tcp > /dev/null 2>&1
+      sudo ufw delete allow from "$IP" to any port "$port" proto udp > /dev/null 2>&1
     done
-    echo "Added $IP to ports: ${VALID_PORTS[*]}"
+    echo "Old ports on IP: $IP removed"
+    for port in "${VALID_PORTS[@]}"; do
+      sudo ufw allow from "$IP" to any port "$port" proto tcp > /dev/null 2>&1
+    done
+    echo "Added IP: $IP"
+    for port in "${VALID_PORTS[@]}"; do
+      sudo ufw deny "$port"/tcp > /dev/null 2>&1
+    done
+    echo "Added DENY: ports ${VALID_PORTS[*]}"
   else
     for port in "${VALID_PORTS[@]}"; do
-      sudo ufw delete allow from $IP to any port $port proto tcp 2>/dev/null
+      sudo ufw delete allow from "$IP" to any port "$port" proto tcp > /dev/null 2>&1
     done
-    echo "Removed $IP from ports: ${VALID_PORTS[*]}"
+    echo "Removed IP: $IP"
   fi
   printf '%.0s─' {1..50}; echo
 }
