@@ -229,7 +229,6 @@ if $SUCCESS; then
   echo -e "${ORANGE}Writing Docker Compose file...${NC}"
   cat > Ethereum/docker-compose.yml <<'EOF'
 services:
-  # 1. Execution Client (Reth)
   reth:
     image: ghcr.io/paradigmxyz/reth:latest
     container_name: reth
@@ -253,10 +252,9 @@ services:
       - --authrpc.port=8551
       - --authrpc.jwtsecret=/data/jwt.hex
     ports:
-      - "8545:8545"
-      - "8546:8546"
+      - 8545:8545
+      - 8546:8546
 
-  # 2. Consensus Client (Prysm)
   prysm:
     image: gcr.io/prysmaticlabs/prysm/beacon-chain:latest
     container_name: prysm
@@ -278,8 +276,8 @@ services:
       - --genesis-beacon-api-url=https://checkpoint-sync.sepolia.ethpandaops.io
       - --accept-terms-of-use
     ports:
-      - "3500:3500"
-      - "4000:4000"
+      - 3500:3500
+      - 4000:4000
 EOF
   if [ $? -eq 0 ]; then
     echo -e "${GREEN}• Docker Compose file written.${NC}"
@@ -325,9 +323,9 @@ if $SUCCESS; then
   echo -e "${ORANGE}============================================================${NC}"
 fi
 
-# --- Firewall Setup (Optional) ---
+# --- Firewall Setup ---
 if $SUCCESS; then
-  echo -e "${ORANGE}Configuring firewall rules (optional)...${NC}"
+  echo -e "${ORANGE}Configuring firewall rules ...${NC}"
   if command -v ufw >/dev/null 2>&1; then
     ufw allow 22/tcp >/dev/null 2>&1
     ufw allow ssh >/dev/null 2>&1
