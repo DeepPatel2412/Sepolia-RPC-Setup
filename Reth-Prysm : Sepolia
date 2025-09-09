@@ -432,14 +432,14 @@ if $SUCCESS; then
   echo -e "${ORANGE}ETHEREUM SEPOLIA NODE STATUS (Reth)${NC}"
   echo -e "${ORANGE}============================================================${NC}"
   echo -e "${GREEN}Local (Aztec node on this VPS)${NC}"
-  echo "• Sepolia RPC    : ✔ http://localhost:8545/"
-  echo "• Beacon RPC     : ✔ http://localhost:3500/"
+  echo "• Sepolia RPC    : ✔ http://localhost:8545"
+  echo "• Beacon RPC     : ✔ http://localhost:3500"
   echo -e "\n${GREEN}Remote (Aztec node on different VPS)${NC}"
   LOCAL_IP=$(hostname -I | awk '{print $1}')
-  echo "• Sepolia RPC    : ✔ http://$LOCAL_IP:8545/"
-  echo "• Beacon RPC     : ✔ http://$LOCAL_IP:3500/"
+  echo "• Sepolia RPC    : ✔ http://$LOCAL_IP:8545"
+  echo "• Beacon RPC     : ✔ http://$LOCAL_IP:3500"
   echo -e "\n${GREEN}Monitoring logs${NC}"
-  echo "• Dozzle         : ✔ http://$LOCAL_IP:9999/"
+  echo "• Dozzle         : ✔ http://$LOCAL_IP:9999"
   echo -e "${ORANGE}============================================================${NC}"
 fi
 
@@ -448,7 +448,7 @@ if $SUCCESS; then
   echo -e "${ORANGE}SETUP COMPLETE - CREED'S TOOLS${NC}"
   echo -e "${ORANGE}------------------------------------------------------------${NC}"
   echo "• Need help? Reach out:"
-  printf "• %-9s : @web3.creed\n" "Discord"
+  printf "• %-9s : @web3.creed\n" "Discord" (In Aztec Server)
   printf "• %-9s : @web3mrcat\n" "Twitter"
   echo -e "${ORANGE}============================================================${NC}"
 else
