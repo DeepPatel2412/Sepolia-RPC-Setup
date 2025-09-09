@@ -448,7 +448,7 @@ if $SUCCESS; then
   echo -e "${ORANGE}SETUP COMPLETE - CREED'S TOOLS${NC}"
   echo -e "${ORANGE}------------------------------------------------------------${NC}"
   echo "• Need help? Reach out:"
-  printf "• %-9s : @web3.creed\n" "Discord" (In Aztec Server)
+  printf "• %-9s : @web3.creed\n" "Discord (In Aztec Server)"
   printf "• %-9s : @web3mrcat\n" "Twitter"
   echo -e "${ORANGE}============================================================${NC}"
 else
