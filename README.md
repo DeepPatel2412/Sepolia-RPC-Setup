@@ -72,7 +72,6 @@ Ethereum/
 ├── Consensus/
 ├── docker-compose.yml
 ├── jwt.hex
-└── whitelist.lst
 ```
 ------------------------------------------
 ## ⚠️ Security Tips
