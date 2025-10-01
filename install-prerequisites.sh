@@ -16,7 +16,7 @@ echo "🔄 Updating package lists..."
 sudo apt-get update -y > /dev/null 2>&1
 
 echo "📦 Installing prerequisite packages..."
-sudo apt install -y curl iptables build-essential git wget lz4 jq make gcc nano automake autoconf tmux htop nvme-cli libgbm1 pkg-config libssl-dev libleveldb-dev tar clang bsdmainutils ncdu unzip libleveldb-dev ufw screen gawk > /dev/null 2>&1
+sudo apt install -y curl iptables build-essential git wget liblz4-tool jq make gcc nano automake autoconf tmux htop nvme-cli libgbm1 pkg-config libssl-dev libleveldb-dev tar clang bsdmainutils ncdu unzip libleveldb-dev ufw screen gawk > /dev/null 2>&1
 
 echo "🧹 Removing old or conflicting Docker packages..."
 for pkg in docker.io docker-doc docker-compose podman-docker containerd runc docker-ce docker-ce-cli docker-buildx-plugin docker-compose-plugin; do
