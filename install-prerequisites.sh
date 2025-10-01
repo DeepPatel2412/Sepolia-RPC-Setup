@@ -12,9 +12,8 @@ if [ ! -f /etc/os-release ]; then
   exit 1
 fi
 
-echo "🔄 Updating and upgrading all system packages..."
+echo "🔄 Updating package lists..."
 sudo apt-get update -y > /dev/null 2>&1
-sudo apt-get upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" > /dev/null 2>&1
 
 echo "📦 Installing prerequisite packages..."
 sudo apt install -y curl iptables build-essential git wget lz4 jq make gcc nano automake autoconf tmux htop nvme-cli libgbm1 pkg-config libssl-dev libleveldb-dev tar clang bsdmainutils ncdu unzip libleveldb-dev ufw screen gawk > /dev/null 2>&1
@@ -46,7 +45,6 @@ echo \
 
 echo "🔄 Updating package lists with Docker repo..."
 sudo apt-get update -y > /dev/null 2>&1
-sudo apt-get upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" > /dev/null 2>&1
 
 echo "🐳 Installing Docker components..."
 sudo apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin > /dev/null 2>&1
