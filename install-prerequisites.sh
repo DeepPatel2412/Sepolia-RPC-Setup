@@ -2,14 +2,13 @@
 
 set -e
 
-# Disable needrestart prompts
-echo 'needrestart=none' | sudo tee /etc/needrestart/needrestart.conf > /dev/null
-
-# Mask motd-news reboot notifications (optional)
+# Temporarily mask motd-news reboot notifications
 sudo systemctl mask motd-news.service motd-news.timer > /dev/null 2>&1 || true
 
 if [ ! -f /etc/os-release ]; then
   echo "Not Ubuntu or Debian"
+  # Unmask motd-news before exiting
+  sudo systemctl unmask motd-news.service motd-news.timer > /dev/null 2>&1 || true
   exit 1
 fi
 
@@ -64,5 +63,10 @@ if sudo docker run hello-world > /dev/null 2>&1; then
   echo -e "\u2022 Docker Installed \u2714"
 else
   echo "Docker installation test failed."
+  # Unmask motd-news before exiting
+  sudo systemctl unmask motd-news.service motd-news.timer > /dev/null 2>&1 || true
   exit 1
 fi
+
+# Unmask motd-news reboot notifications to restore original state
+sudo systemctl unmask motd-news.service motd-news.timer > /dev/null 2>&1 || true
