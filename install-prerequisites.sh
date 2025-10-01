@@ -23,7 +23,9 @@ fi
 if [ $script_failed -eq 0 ]; then
   echo "🧹 Removing old or conflicting Docker packages..."
   for pkg in docker.io docker-doc docker-compose podman-docker containerd runc docker-ce docker-ce-cli; do
-    sudo apt-get remove --purge -y $pkg > /dev/null 2>&1 || echo "Warning: Failed to remove $pkg, continuing."
+    if dpkg -s "$pkg" > /dev/null 2>&1; then
+      sudo apt-get remove --purge -y "$pkg" > /dev/null 2>&1 || echo "Warning: Failed to remove $pkg, continuing."
+    fi
   done
 fi
 
