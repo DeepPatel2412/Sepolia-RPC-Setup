@@ -4,6 +4,7 @@ set -e
 
 script_failed=0
 
+# Check if running on Debian/Ubuntu
 if [ ! -f /etc/os-release ]; then
   echo "Error: Not Ubuntu or Debian"
   script_failed=1
@@ -22,7 +23,7 @@ fi
 if [ $script_failed -eq 0 ]; then
   echo "🧹 Removing old or conflicting Docker packages..."
   for pkg in docker.io docker-doc docker-compose podman-docker containerd runc docker-ce docker-ce-cli; do
-    sudo apt-get remove --purge -y $pkg > /dev/null 2>&1 || true
+    sudo apt-get remove --purge -y $pkg > /dev/null 2>&1 || echo "Warning: Failed to remove $pkg, continuing."
   done
 fi
 
@@ -57,18 +58,24 @@ fi
 
 if [ $script_failed -eq 0 ]; then
   echo "🐳 Installing Docker components..."
-  sudo apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" docker-ce docker-ce-cli containerd.io > /dev/null 2>&1 || script_failed=1
+  sudo apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" docker-ce docker-ce-cli containerd.io > /dev/null 2>&1 || { echo "Error: Docker engine install failed."; script_failed=1; }
 fi
 
 if [ $script_failed -eq 0 ]; then
-  echo "📥 Installing Docker Compose via pip3..."
-  sudo pip3 install docker-compose > /dev/null 2>&1 || script_failed=1
+  echo "📥 Installing Docker Compose v2 plugin manually..."
+  mkdir -p ~/.docker/cli-plugins
+  if curl -fsSL https://github.com/docker/compose/releases/download/v2.20.2/docker-compose-linux-x86_64 -o ~/.docker/cli-plugins/docker-compose > /dev/null 2>&1; then
+    chmod +x ~/.docker/cli-plugins/docker-compose
+  else
+    echo "Warning: Failed to download Docker Compose v2 plugin binary."
+    script_failed=1
+  fi
 fi
 
 if [ $script_failed -eq 0 ]; then
   echo "🚦 Enabling and starting Docker service..."
-  sudo systemctl enable docker > /dev/null 2>&1 || script_failed=1
-  sudo systemctl restart docker > /dev/null 2>&1 || script_failed=1
+  sudo systemctl enable docker > /dev/null 2>&1 || { echo "Warning: Failed to enable Docker service."; }
+  sudo systemctl restart docker > /dev/null 2>&1 || { echo "Warning: Failed to restart Docker service."; }
 fi
 
 if [ $script_failed -eq 0 ]; then
@@ -85,5 +92,5 @@ if [ $script_failed -eq 0 ]; then
 fi
 
 if [ $script_failed -ne 0 ]; then
-  echo "Script completed with errors. Please check the above messages and logs."
+  echo "⚠️ Script finished with some warnings or errors. Please review the output for details."
 fi
