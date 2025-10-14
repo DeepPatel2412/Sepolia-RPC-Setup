@@ -1,0 +1,460 @@
+#!/bin/bash
+clear
+# --- Colors ---
+NC='\033[0m'
+ORANGE='\033[38;5;208m'
+RED='\033[31m'
+CYAN='\033[36m'
+GREEN='\033[32m'
+GRAY='\033[90m'
+
+SUCCESS=true
+
+# --- Banner ---
+echo -e "${ORANGE}============================================================${NC}"
+echo -e "${ORANGE}      ETHEREUM SEPOLIA NODE INSTALLER (Reth)${NC}"
+echo -e "${ORANGE}                by Creed${NC}"
+echo -e "${ORANGE}============================================================${NC}"
+
+# --- System Check ---
+echo -e "${ORANGE}Recommended System Specifications:${NC}"
+echo "• CPU: 6 Cores"
+echo "• RAM: 16 GB"
+echo "• Storage: 1TB SSD"
+echo -e "${ORANGE}============================================================${NC}"
+echo -e "${ORANGE}Checking your system resources...${NC}"
+
+AVAILABLE_SPACE=$(df -BG --output=avail . | tail -1 | tr -d 'G ')
+MOUNT_POINT=$(df -h . | awk 'NR==2 {print $6}')
+CPU_CORES=$(nproc)
+TOTAL_RAM=$(free -g | awk '/Mem:/ {print $2}')
+
+echo "Your System Resources:"
+echo "• Checked mount point: $MOUNT_POINT"
+echo "• Available Storage: ${AVAILABLE_SPACE}G"
+echo "• CPU Cores: ${CPU_CORES}"
+echo "• Total RAM: ${TOTAL_RAM}GB"
+
+WARNING=""
+if [[ ${AVAILABLE_SPACE} -lt 975 ]]; then
+  WARNING+="${RED}• Low storage space detected (minimum 1TB required)${NC}\n"
+fi
+if [[ ${CPU_CORES} -lt 6 ]]; then
+  WARNING+="${RED}• Insufficient CPU cores detected (minimum 6 required)${NC}\n"
+fi
+if [[ ${TOTAL_RAM} -lt 16 ]]; then
+  WARNING+="${RED}• Insufficient RAM detected (minimum 16GB required)${NC}\n"
+fi
+
+if [[ -n "$WARNING" ]]; then
+  echo -e "${RED}Potential Issues Found:${NC}"
+  printf "$WARNING"
+  echo "What would you like to do?"
+  echo -e "${CYAN}1: Continue installation despite warnings${NC}"
+  echo -e "${CYAN}2: Abort installation${NC}"
+  echo -n "• Enter your choice (1-2): "
+  read -r CHOICE
+  case "$CHOICE" in
+    1)
+      echo "Continuing installation..."
+      ;;
+    2)
+      echo "Installation aborted by user."
+      SUCCESS=false
+      ;;
+    *)
+      echo "Invalid choice. Aborting installation."
+      SUCCESS=false
+      ;;
+  esac
+fi
+
+if ! $SUCCESS; then
+  echo -e "${RED}Setup aborted due to system resource warnings or user abort.${NC}"
+else
+
+# --- Start Peak Storage Monitor ---
+STORAGE_BEFORE=$(df -BG --output=used . | tail -1 | tr -d 'G ')
+PEAK_STORAGE_FILE=$(mktemp)
+echo "$STORAGE_BEFORE" > "$PEAK_STORAGE_FILE"
+
+echo -e "${ORANGE}Starting peak storage monitor in the background...${NC}"
+{
+  PEAK_SO_FAR=$STORAGE_BEFORE
+  while ps -p $$ > /dev/null; do
+    CURRENT_USED=$(df -BG --output=used . | tail -1 | tr -d 'G ' || echo "$PEAK_SO_FAR")
+    if (( CURRENT_USED > PEAK_SO_FAR )); then
+      PEAK_SO_FAR=$CURRENT_USED
+      echo "$PEAK_SO_FAR" > "$PEAK_STORAGE_FILE"
+    fi
+    sleep 2
+  done
+} &
+MONITOR_PID=$!
+
+echo -e "${ORANGE}============================================================${NC}"
+
+# --- Prerequisites ---
+echo -e "${ORANGE}Checking and installing prerequisites...${NC}"
+
+# --- All apt-based tools (zstd, pv, ufw, wget) ---
+echo -e "${CYAN}• Checking and installing required system tools...${NC}"
+if command -v apt-get >/dev/null 2>&1; then
+  sudo apt-get update -y >/dev/null 2>&1
+  if ! command -v zstd >/dev/null 2>&1; then
+    sudo apt-get install -y zstd >/dev/null 2>&1 || echo -e "${RED}• Failed to install zstd.${NC}"
+  else
+    echo "• zstd already installed."
+  fi
+  if ! command -v pv >/dev/null 2>&1; then
+    sudo apt-get install -y pv >/dev/null 2>&1 && echo "• 'pv' installed." || echo "• Could not install 'pv'. Progress bar may be omitted."
+  else
+    echo "• pv (for progress bar) already installed."
+  fi
+  if ! command -v ufw >/dev/null 2>&1; then
+    sudo apt-get install -y ufw >/dev/null 2>&1 && echo "• 'ufw' installed." || echo -e "${RED}• Failed to install 'ufw'. Firewall setup will be skipped.${NC}"
+  else
+    echo "• ufw already installed."
+  fi
+  if ! command -v wget >/dev/null 2>&1; then
+    sudo apt-get install -y wget >/dev/null 2>&1 || echo -e "${RED}• Failed to install wget.${NC}"
+  else
+    echo "• wget already installed."
+  fi
+  echo "• All apt-based prerequisites checked and installed."
+elif command -v yum >/dev/null 2>&1; then
+  sudo yum install -y epel-release >/dev/null 2>&1
+  sudo yum install -y zstd pv ufw wget >/dev/null 2>&1 && echo "• All yum-based prerequisites checked and installed." || echo -e "${RED}• Failed to install one or more system packages.${NC}"
+fi
+
+# --- Docker & Compose ---
+if $SUCCESS; then
+  echo -e "${ORANGE}Checking for Docker and Docker Compose...${NC}"
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "• Docker not found. Installing prerequisites..."
+    wget -qO- https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/install-prerequisites.sh | bash || SUCCESS=false
+  fi
+
+  if ! sudo docker compose version >/dev/null 2>&1; then
+    echo "• Docker Compose plugin not found. Installing prerequisites..."
+    wget -qO- https://raw.githubusercontent.com/DeepPatel2412/Sepolia-RPC-Setup/main/install-prerequisites.sh | bash || SUCCESS=false
+  fi
+
+  if $SUCCESS; then
+    echo "• Docker and Compose are installed."
+  fi
+fi
+
+# --- Directory Structure ---
+if $SUCCESS; then
+  echo -e "${ORANGE}Creating directory structure...${NC}"
+  mkdir -p Ethereum/Execution Ethereum/Consensus || {
+    echo -e "${RED}Failed to create directories.${NC}"
+    SUCCESS=false
+  }
+  if $SUCCESS; then
+    echo "• Directory structure ready."
+  fi
+  echo -e "${ORANGE}============================================================${NC}"
+fi
+
+# --- Snapshot Section using wget streaming ---
+if $SUCCESS; then
+
+  echo -e "${ORANGE}Fetching latest Reth snapshot for Sepolia...${NC}"
+  BLOCK_NUMBER=$(wget -qO- "https://snapshots.ethpandaops.io/sepolia/reth/latest")
+
+  if [ -z "$BLOCK_NUMBER" ]; then
+    echo -e "${RED}ERROR: No Reth snapshot available for Sepolia. Please check the snapshot service.${NC}"
+    SUCCESS=false
+  fi
+fi
+
+if $SUCCESS; then
+  SNAPSHOT_URL="https://snapshots.ethpandaops.io/sepolia/reth/$BLOCK_NUMBER/snapshot.tar.zst"
+  echo "Snapshot URL: $SNAPSHOT_URL"
+
+  echo "• Getting snapshot size for progress bar..."
+  SNAPSHOT_SIZE=$(wget --spider --server-response "$SNAPSHOT_URL" 2>&1 | grep -i 'content-length' | awk '{print $2}' | tr -d '\r')
+
+  cd Ethereum/Execution || {
+    echo -e "${RED}ERROR: Ethereum/Execution directory not found.${NC}"
+    SUCCESS=false
+  }
+fi
+
+if $SUCCESS; then
+  echo -e "${ORANGE}• Downloading and extracting snapshot (streaming)...${NC}"
+  rm -rf ./*
+
+  if command -v pv >/dev/null 2>&1 && [ -n "$SNAPSHOT_SIZE" ]; then
+    echo "• Snapshot size found. Starting download with full progress details..."
+    wget -q -O - "$SNAPSHOT_URL" | pv -pterb -s "$SNAPSHOT_SIZE" | tar -I zstd -xf - || SUCCESS=false
+  elif command -v pv >/dev/null 2>&1; then
+    echo "• Could not determine snapshot size. Progress bar will be limited."
+    wget -q -O - "$SNAPSHOT_URL" | pv | tar -I zstd -xf - || SUCCESS=false
+  else
+    echo "• pv not installed. No progress bar will be shown."
+    wget -q -O - "$SNAPSHOT_URL" | tar -I zstd -xf - || SUCCESS=false
+  fi
+
+  cd ../.. || true
+
+  if $SUCCESS; then
+    echo -e "${GREEN}Snapshot imported successfully.${NC}"
+  else
+    echo -e "${RED}ERROR: Snapshot download or extraction failed.${NC}"
+  fi
+fi
+
+# --- Generate JWT Secret ---
+if $SUCCESS; then
+  echo -e "${ORANGE}Generating JWT secret...${NC}"
+  if [ -f Ethereum/jwt.hex ]; then
+    echo "• JWT secret already exists, skipping."
+  else
+    openssl rand -hex 32 | tr -d "\n" > Ethereum/jwt.hex || {
+      echo -e "${RED}Failed to generate JWT secret.${NC}"
+      SUCCESS=false
+    }
+    if $SUCCESS; then
+      echo "• JWT secret created."
+    fi
+  fi
+  echo -e "${ORANGE}============================================================${NC}"
+fi
+
+# --- Write Docker Compose File ---
+if $SUCCESS; then
+  echo -e "${ORANGE}Writing Docker Compose file...${NC}"
+  cat > Ethereum/docker-compose.yml <<'EOF'
+services:
+  reth:
+    image: ghcr.io/paradigmxyz/reth:v1.8.2
+    container_name: reth
+    restart: unless-stopped
+    volumes:
+      - ./Execution:/data
+      - ./jwt.hex:/data/jwt.hex
+    command:
+      - node
+      - --chain=sepolia
+      - --full
+      - --datadir=/data
+      - --http
+      - --http.addr=0.0.0.0
+      - --http.api=eth,net,web3,admin
+      - --http.corsdomain=*
+      - --ws
+      - --ws.addr=0.0.0.0
+      - --ws.api=eth,net,web3,admin
+      - --authrpc.addr=0.0.0.0
+      - --authrpc.port=8551
+      - --authrpc.jwtsecret=/data/jwt.hex
+    ports:
+      - 8545:8545
+      - 8546:8546
+
+  prysm:
+    image: gcr.io/prysmaticlabs/prysm/beacon-chain:v6.1.2
+    container_name: prysm
+    restart: unless-stopped
+    depends_on:
+      - reth
+    volumes:
+      - ./Consensus:/data
+      - ./jwt.hex:/data/jwt.hex
+    command:
+      - --subscribe-all-data-subnets
+      - --sepolia
+      - --datadir=/data
+      - --execution-endpoint=http://reth:8551
+      - --jwt-secret=/data/jwt.hex
+      - --rpc-host=0.0.0.0
+      - --grpc-gateway-host=0.0.0.0
+      - --blob-storage-layout=by-epoch
+      - --checkpoint-sync-url=https://checkpoint-sync.sepolia.ethpandaops.io
+      - --genesis-beacon-api-url=https://checkpoint-sync.sepolia.ethpandaops.io
+      - --accept-terms-of-use
+    ports:
+      - 3500:3500
+      - 4000:4000
+EOF
+  if [ $? -eq 0 ]; then
+    echo -e "${GREEN}• Docker Compose file written.${NC}"
+  else
+    echo -e "${RED}Failed to write Docker Compose file.${NC}"
+    SUCCESS=false
+  fi
+  echo -e "${ORANGE}============================================================${NC}"
+fi
+
+# --- Start Docker Stack ---
+if $SUCCESS; then
+  echo -e "${ORANGE}Starting Docker Compose stack...${NC}"
+  cd Ethereum || {
+    echo -e "${RED}ERROR: Cannot enter Ethereum directory.${NC}"
+    SUCCESS=false
+  }
+  if $SUCCESS; then
+    docker compose up -d --force-recreate --quiet-pull || {
+      echo -e "${RED}Failed to start Docker Compose stack.${NC}"
+      SUCCESS=false
+    }
+    cd .. || true
+    if $SUCCESS; then
+      echo -e "${GREEN}• Docker Compose stack started.${NC}"
+    fi
+  fi
+  echo -e "${ORANGE}============================================================${NC}"
+fi
+
+# --- Install Dozzle Log Monitor ---
+if $SUCCESS; then
+  echo -e "${ORANGE}Installing Dozzle monitoring...${NC}"
+  if ! docker ps -a --format '{{.Names}}' | grep -q "^dozzle$"; then
+    docker run -d \
+      -v /var/run/docker.sock:/var/run/docker.sock \
+      -p 9999:8080 \
+      --name dozzle \
+      amir20/dozzle:latest >/dev/null 2>&1 && echo "• Dozzle installed." || echo "• Failed to install Dozzle."
+  else
+    echo "• Dozzle container already exists, skipping."
+  fi
+  echo -e "${ORANGE}============================================================${NC}"
+fi
+
+# --- Firewall Setup ---
+if $SUCCESS; then
+  echo -e "${ORANGE}Configuring firewall rules ...${NC}"
+  if command -v ufw >/dev/null 2>&1; then
+    ufw allow 22/tcp >/dev/null 2>&1
+    ufw allow ssh >/dev/null 2>&1
+    ufw allow 30303/tcp >/dev/null 2>&1
+    ufw allow 30303/udp >/dev/null 2>&1
+    ufw allow 12000/udp >/dev/null 2>&1
+    ufw allow 13000/tcp >/dev/null 2>&1
+    ufw allow 9999/tcp >/dev/null 2>&1
+    ufw allow 8545/tcp >/dev/null 2>&1
+    ufw allow 3500/tcp >/dev/null 2>&1
+    ufw deny from any to any port 8551 proto tcp >/dev/null 2>&1
+    ufw --force enable >/dev/null 2>&1
+    ufw reload >/dev/null 2>&1
+    echo "• Base firewall rules configured."
+  else
+    echo "• UFW not installed. Skipping firewall setup."
+  fi
+fi
+
+# --- Monitor Reth Sync Progress ---
+if $SUCCESS; then
+  monitor_reth_sync() {
+      echo ""
+      echo -e "${CYAN}• The node is now syncing (This screen refreshes automatically)${NC}"
+      first_run=true
+      while true; do
+          trap 'echo -e "\n\n${ORANGE}Monitoring skipped by user. Continuing setup...${NC}\n"; return' INT
+          if [ "$first_run" = false ]; then
+              printf "\033[5A"
+          fi
+          first_run=false
+          SYNC_STATUS=$(wget -qO- --header="Content-Type: application/json" --post-data='{"jsonrpc":"2.0","method":"eth_syncing","params":[],"id":1}' "http://localhost:8545" 2>/dev/null)
+          LATEST_FINISHED_LINE=$(docker logs reth 2>/dev/null | grep "Finished stage" | tail -1)
+          FINISHED_STAGE_TEXT="${GRAY}Waiting for first stage to finish...${NC}"
+          if [ -n "$LATEST_FINISHED_LINE" ]; then
+              CLEAN_FINISHED_LINE=$(echo "$LATEST_FINISHED_LINE" | sed -e 's/\x1b\[[0-9;]*m//g')
+              PARSED_STAGE_INFO=$(echo "$CLEAN_FINISHED_LINE" | grep -o 'pipeline_stages=[^ ]*' | cut -d'=' -f2)
+              PARSED_STAGE_NAME=$(echo "$CLEAN_FINISHED_LINE" | grep -o 'stage=[^ ]*' | cut -d'=' -f2)
+              if [ -n "$PARSED_STAGE_INFO" ] && [ -n "$PARSED_STAGE_NAME" ]; then
+                  FINISHED_STAGE_TEXT=$(printf "${GREEN}%-7s (%s)${NC}" "$PARSED_STAGE_INFO" "$PARSED_STAGE_NAME")
+              fi
+          fi
+          LATEST_RUNNING_LINE=$(docker logs reth 2>/dev/null | grep -E "Executing stage|Committed stage progress" | tail -1)
+          RUNNING_STAGE_TEXT="${GRAY}Initializing...${NC}"
+          if [ -n "$LATEST_RUNNING_LINE" ]; then
+              CLEAN_RUNNING_LINE=$(echo "$LATEST_RUNNING_LINE" | sed -e 's/\x1b\[[0-9;]*m//g')
+              RUNNING_STAGE_INFO=$(echo "$CLEAN_RUNNING_LINE" | grep -o 'pipeline_stages=[^ ]*' | cut -d'=' -f2)
+              RUNNING_STAGE_NAME=$(echo "$CLEAN_RUNNING_LINE" | grep -o 'stage=[^ ]*' | cut -d'=' -f2)
+              RUNNING_STAGE_PCT=$(echo "$CLEAN_RUNNING_LINE" | grep -o 'stage_progress=[^ ]*' | cut -d'=' -f2)
+              if [ -n "$RUNNING_STAGE_INFO" ] && [ -n "$RUNNING_STAGE_NAME" ]; then
+                  if [ -n "$RUNNING_STAGE_PCT" ]; then
+                      RUNNING_STAGE_TEXT=$(printf "${CYAN}%-7s (%s) | Progress: %s${NC}" "$RUNNING_STAGE_INFO" "$RUNNING_STAGE_NAME" "$RUNNING_STAGE_PCT")
+                  else
+                      RUNNING_STAGE_TEXT=$(printf "${CYAN}%-7s (%s)${NC}" "$RUNNING_STAGE_INFO" "$RUNNING_STAGE_NAME")
+                  fi
+              fi
+          fi
+          if echo "$SYNC_STATUS" | grep -q '"result":false'; then
+              echo -e "${ORANGE}==================== RETH SYNC STATUS =====================\033[K${NC}"
+              echo -e "${GREEN}Synced         - ✔ Synced\033[K${NC}"
+              echo -e "${GREEN}Finished Stage - All stages complete.\033[K${NC}"
+              echo -e "${GREEN}Current Stage  - Done.\033[K${NC}"
+              echo -e "${ORANGE}============================================================\033[K${NC}"
+              sleep 1
+              break
+          else
+              echo -e "${ORANGE}==================== RETH SYNC STATUS =====================\033[K${NC}"
+              echo -e "${CYAN}Synced         - ⏳ In Progress...\033[K${NC}"
+              echo -e "Finished Stage - $FINISHED_STAGE_TEXT\033[K"
+              echo -e "Current Stage  - $RUNNING_STAGE_TEXT\033[K"
+              echo -e "${ORANGE}============================================================\033[K${NC}"
+          fi
+          sleep 5
+      done
+      trap - INT
+      echo ""
+  }
+  monitor_reth_sync
+fi
+
+# --- Storage Summary ---
+if $SUCCESS; then
+  kill "$MONITOR_PID" 2>/dev/null
+  wait "$MONITOR_PID" 2>/dev/null || true
+
+  PEAK_STORAGE_DURING_SETUP=$(cat "$PEAK_STORAGE_FILE")
+  rm "$PEAK_STORAGE_FILE"
+
+  STORAGE_AFTER=$(df -BG --output=used . | tail -1 | tr -d 'G ')
+
+  if [ -n "$STORAGE_BEFORE" ] && [ -n "$PEAK_STORAGE_DURING_SETUP" ]; then
+    echo -e "${ORANGE}============================================================${NC}"
+    echo -e "${ORANGE}                    STORAGE SUMMARY${NC}"
+    echo -e "${ORANGE}============================================================${NC}"
+    printf "• Initial Storage Used:         %s\n" "${STORAGE_BEFORE}G"
+    printf "• Peaked Storage During Setup:  ${CYAN}%s${NC}\n" "${PEAK_STORAGE_DURING_SETUP}G"
+    printf "• Final Storage Used:           %s\n" "${STORAGE_AFTER}G"
+  fi
+fi
+
+# --- Node Status Display ---
+if $SUCCESS; then
+  echo -e "${ORANGE}============================================================${NC}"
+  echo -e "${ORANGE}ETHEREUM SEPOLIA NODE STATUS (Reth)${NC}"
+  echo -e "${ORANGE}============================================================${NC}"
+  echo -e "${GREEN}Local (Aztec node on this VPS)${NC}"
+  echo "• Sepolia RPC    : ✔ http://localhost:8545"
+  echo "• Beacon RPC     : ✔ http://localhost:3500"
+  echo -e "\n${GREEN}Remote (Aztec node on different VPS)${NC}"
+  LOCAL_IP=$(hostname -I | awk '{print $1}')
+  echo "• Sepolia RPC    : ✔ http://$LOCAL_IP:8545"
+  echo "• Beacon RPC     : ✔ http://$LOCAL_IP:3500"
+  echo -e "\n${GREEN}Monitoring logs${NC}"
+  echo "• Dozzle         : ✔ http://$LOCAL_IP:9999"
+  echo -e "${ORANGE}============================================================${NC}"
+fi
+
+# --- Footer ---
+if $SUCCESS; then
+  echo -e "${ORANGE}SETUP COMPLETE - CREED'S TOOLS${NC}"
+  echo -e "${ORANGE}------------------------------------------------------------${NC}"
+  echo "• Need help? Reach out:"
+  printf "• %-9s : @web3.creed\n" "Discord (In Aztec Server)"
+  printf "• %-9s : @web3mrcat\n" "Twitter"
+  echo -e "${ORANGE}============================================================${NC}"
+else
+  echo -e "${RED}Installation did not complete successfully.${NC}"
+  echo -e "${RED}Please resolve errors and rerun the script.${NC}"
+fi
+
+fi # End main SUCCESS check from system pre-check

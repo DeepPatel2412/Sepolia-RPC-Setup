@@ -1,0 +1,201 @@
+#!/bin/bash
+set -e
+
+# Colors
+ORANGE="\e[38;5;214m"
+GREEN="\e[32m"
+RED="\e[31m"
+RESET="\e[0m"
+BOLD="\e[1m"
+YELLOW="\e[33m"
+
+green_line() {
+    local width=40
+    local line
+    line=$(printf "%${width}s" | tr ' ' '=')
+    echo -e "${GREEN}${line}${RESET}"
+}
+
+center_orange_banner() {
+    local text=" $1 "
+    local width=40
+    local text_len=${#text}
+    local pad_total=$((width - text_len))
+    local pad_left=$((pad_total / 2))
+    local pad_right=$((pad_total - pad_left))
+    green_line
+    printf "${ORANGE}${BOLD}%*s%s%*s${RESET}\n" "$pad_left" "" "$text" "$pad_right" ""
+    green_line
+}
+
+section() { echo -e "${ORANGE}● $1${RESET}"; }
+tree_item() { local txt="$1"; echo -e "  └── $txt"; }
+
+remove_by_image() {
+    local display="$1"
+    local image="$2"
+    local show_dir="$3"
+    local found_container=0
+    local found_image=0
+
+    mapfile -t cids < <(sudo docker ps -a --filter "ancestor=$image" --format '{{.ID}}')
+    if [ "${#cids[@]}" -gt 0 ]; then
+        for cid in "${cids[@]}"; do
+            found_container=1
+            cname=$(sudo docker inspect --format '{{.Name}}' "$cid" 2>/dev/null | sed 's/^\/\(.*\)/\1/')
+            sudo docker rm -f "$cid" >/dev/null 2>&1 || true
+            tree_item "${display} container (${cname:-$cid}) removed ${GREEN}✓${RESET}"
+        done
+    else
+        tree_item "No containers to remove ${RED}✗${RESET}"
+    fi
+
+    if sudo docker images --format '{{.Repository}}:{{.Tag}}' | grep -qw "$image"; then
+        found_image=1
+        sudo docker rmi -f "$image" >/dev/null 2>&1 || true
+        tree_item "${image} image removed ${GREEN}✓${RESET}"
+    else
+        tree_item "No images to remove ${RED}✗${RESET}"
+    fi
+
+    if [[ "$show_dir" == "yes" ]]; then
+        if [ -d "Ethereum" ]; then
+            sudo rm -rf Ethereum
+            tree_item "Ethereum directory removed ${GREEN}✓${RESET}"
+        else
+            tree_item "No directory to remove ${RED}✗${RESET}"
+        fi
+    fi
+}
+
+remove_dozzle() {
+    local found_container=0
+    local found_image=0
+    local dozzle_images=("dozzle/dozzle:latest" "amir20/dozzle:latest")
+    for img in "${dozzle_images[@]}"; do
+        mapfile -t cids < <(sudo docker ps -a --filter "ancestor=$img" --format '{{.ID}}')
+        if [ "${#cids[@]}" -gt 0 ]; then
+            for cid in "${cids[@]}"; do
+                found_container=1
+                cname=$(sudo docker inspect --format '{{.Name}}' "$cid" 2>/dev/null | sed 's/^\/\(.*\)/\1/')
+                sudo docker rm -f "$cid" >/dev/null 2>&1 || true
+                tree_item "Dozzle container (${cname:-$cid}) removed ${GREEN}✓${RESET}"
+            done
+        fi
+        if sudo docker images --format '{{.Repository}}:{{.Tag}}' | grep -qw "$img"; then
+            found_image=1
+            sudo docker rmi -f "$img" >/dev/null 2>&1 || true
+            tree_item "$img image removed ${GREEN}✓${RESET}"
+        fi
+    done
+    if [ $found_container -eq 0 ]; then
+        tree_item "No containers to remove ${RED}✗${RESET}"
+    fi
+    if [ $found_image -eq 0 ]; then
+        tree_item "No images to remove ${RED}✗${RESET}"
+    fi
+}
+
+remove_firewall_rules() {
+    local ports="$1"
+    local removed_any=0
+    if [[ -z "$ports" ]]; then
+        tree_item "No firewall rules to remove (none specified) ${RED}✗${RESET}"
+        return
+    fi
+    # Build list of ports (strip protocols)
+    local -a port_list=()
+    for port_proto in $ports; do
+        IFS='/' read -r port _ <<< "$port_proto"
+        port_list+=("$port")
+    done
+    local -a rule_nums
+    mapfile -t rule_nums < <(sudo ufw status numbered | grep -oP '\[\s*\K[0-9]+')
+    for ((i=${#rule_nums[@]}-1; i>=0; i--)); do
+        local rule_num="${rule_nums[$i]}"
+        local rule_line
+        rule_line=$(sudo ufw status numbered | grep -E "^\[ *${rule_num}\]" | tr -s ' ')
+        for port in "${port_list[@]}"; do
+            if [[ "$rule_line" =~ ${port}(/| |\(v6\)|$) ]]; then
+                local port_proto_rule=""
+                port_proto_rule=$(echo "$rule_line" | awk '{print $2}')
+                if [[ "$rule_line" =~ ([0-9]+)/(tcp|udp) ]]; then
+                    port_proto_rule="${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"
+                fi
+                if [[ "$rule_line" =~ "\(v6\)" ]]; then
+                    port_proto_rule="$port_proto_rule (v6)"
+                fi
+                yes | sudo ufw delete "$rule_num" >/dev/null 2>&1 && {
+                    tree_item "Removed firewall rule ${port_proto_rule} ${GREEN}✓${RESET}"
+                    removed_any=1
+                }
+                break
+            fi
+        done
+    done
+    if [[ $removed_any -eq 0 && -n "$ports" ]]; then
+        tree_item "No matching firewall rules to remove ${RED}✗${RESET}"
+    fi
+}
+
+# ==== MAIN ====
+
+center_orange_banner "Sepolia RPC Cleanup"
+
+echo -e "${ORANGE}Which components would you like to remove?${RESET}"
+echo -e "  1) reth"
+echo -e "  2) prysm"
+echo -e "  3) Dozzle"
+echo -e "  4) All"
+echo -e "${YELLOW}Enter No(s) (or anything else to exit):${RESET} \c"
+read choices_raw
+IFS=', ' read -r -a choices <<< "$choices_raw"
+echo
+
+valid=0
+for choice in "${choices[@]}"; do
+    case $choice in
+        1|2|3|4) valid=1 ;;
+    esac
+done
+
+if [[ $valid -eq 0 ]]; then
+    echo -e "${RED}No valid option selected. Exiting.${RESET}"
+    center_orange_banner "Cleanup Complete"
+    exit 0
+fi
+
+declare -A selected
+for choice in "${choices[@]}"; do
+    case $choice in
+        1) selected["reth"]=1 ;;
+        2) selected["prysm"]=1 ;;
+        3) selected["dozzle"]=1 ;;
+        4) selected["reth"]=1; selected["prysm"]=1; selected["dozzle"]=1 ;;
+    esac
+done
+
+# Port mapping for each component
+declare -A component_ports=(
+    ["reth"]="30303/tcp 30303/udp 8545/tcp 8551/tcp 9001/tcp"
+    ["prysm"]="13000/tcp 3500/tcp 4000/tcp 12000/udp"
+    ["dozzle"]="9999/tcp"
+)
+
+if [[ ${selected["reth"]} ]]; then
+    section "Reth"
+    remove_by_image "Reth" "ghcr.io/paradigmxyz/reth:latest" "yes"
+    remove_firewall_rules "${component_ports[reth]}"
+fi
+if [[ ${selected["prysm"]} ]]; then
+    section "Prysm"
+    remove_by_image "Prysm" "gcr.io/prysmaticlabs/prysm/beacon-chain:latest" "no"
+    remove_firewall_rules "${component_ports[prysm]}"
+fi
+if [[ ${selected["dozzle"]} ]]; then
+    section "Dozzle"
+    remove_dozzle
+    remove_firewall_rules "${component_ports[dozzle]}"
+fi
+
+center_orange_banner "Cleanup Complete"
