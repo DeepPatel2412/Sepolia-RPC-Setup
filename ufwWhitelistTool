@@ -13,8 +13,8 @@ run_ufw_menu() {
   done
   [[ "$ACTION" != "1" && "$ACTION" != "2" ]] && { echo "Too many invalid attempts. Stopping."; printf '%.0s─' {1..50}; echo; return; }
   printf '%.0s─' {1..50}; echo
-  echo -n "IP address: "
-  read -r IP
+  echo -n "IP address(es) (comma/space separated): "
+  read -r IPS
   echo -n "Port(s) (comma/space separated): "
   read -r PORTS
   declare -a VALID_PORTS
@@ -24,30 +24,37 @@ run_ufw_menu() {
     fi
   done
   [[ ${#VALID_PORTS[@]} -eq 0 ]] && { echo "No valid ports. Aborted."; printf '%.0s─' {1..50}; echo; return; }
+  IFS=', ' read -r -a IPS_ARRAY <<< "$IPS"
+
   if [[ "$ACTION" == "1" ]]; then
-    # Remove existing rules (silent)
-    for port in "${VALID_PORTS[@]}"; do
-      sudo ufw delete deny "$port"/tcp > /dev/null 2>&1
-      sudo ufw delete deny "$port"/udp > /dev/null 2>&1
-      sudo ufw delete allow from "$IP" to any port "$port" proto tcp > /dev/null 2>&1
-      # Add new allow rule
-      sudo ufw allow from "$IP" to any port "$port" proto tcp > /dev/null 2>&1
+    # Add rule(s)
+    for IP in "${IPS_ARRAY[@]}"; do
+      for port in "${VALID_PORTS[@]}"; do
+        sudo ufw delete deny "$port"/tcp > /dev/null 2>&1
+        sudo ufw delete deny "$port"/udp > /dev/null 2>&1
+        sudo ufw delete allow from "$IP" to any port "$port" proto tcp > /dev/null 2>&1
+        sudo ufw allow from "$IP" to any port "$port" proto tcp > /dev/null 2>&1
+      done
     done
-    # Reorder DENY after ALLOW for these ports
+
+    # Reorder DENY rules after ALLOW
     for port in "${VALID_PORTS[@]}"; do
-      # Delete ALL DENY rules for this port (TCP/UDP)
+      # Delete all DENY for this port (tcp and udp)
       while sudo ufw status numbered | grep -qE "^\[[0-9]+\].*$port\/(tcp|udp).*DENY"; do
         sudo ufw --force delete $(sudo ufw status numbered | grep -E "^\[[0-9]+\].*$port\/(tcp|udp).*DENY" | head -1 | cut -d']' -f1 | tr -d '[') > /dev/null 2>&1
       done
-      # Add DENY rule (TCP only, global) again—will now appear after ALLOW
+      # Add single deny tcp rule to bottom (will be after all allow)
       sudo ufw deny "$port"/tcp > /dev/null 2>&1
     done
-    echo "OK: Added $IP to ${VALID_PORTS[*]}, denied others (TCP)"
+    echo "OK: Added ${IPS_ARRAY[*]} to ${VALID_PORTS[*]}, denied others (TCP)"
   else
-    for port in "${VALID_PORTS[@]}"; do
-      sudo ufw delete allow from "$IP" to any port "$port" proto tcp > /dev/null 2>&1
+    # Remove rule(s)
+    for IP in "${IPS_ARRAY[@]}"; do
+      for port in "${VALID_PORTS[@]}"; do
+        sudo ufw delete allow from "$IP" to any port "$port" proto tcp > /dev/null 2>&1
+      done
     done
-    echo "OK: Removed $IP from ${VALID_PORTS[*]}"
+    echo "OK: Removed ${IPS_ARRAY[*]} from ${VALID_PORTS[*]}"
   fi
   printf '%.0s─' {1..50}; echo
 }
